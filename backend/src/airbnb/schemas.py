@@ -1,0 +1,1 @@
+"""Airbnb-specific Pydantic models."""
