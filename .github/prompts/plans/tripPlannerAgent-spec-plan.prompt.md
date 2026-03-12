@@ -429,7 +429,7 @@ agent = Agent(
 **Step 11. Nuxt 3 project setup** _(mirrors JobAutoAgent frontend)_
 
 - `pnpm create nuxt frontend/` from monorepo root
-- Install production deps: `@pinia/nuxt`, `shadcn-nuxt`, `@tailwindcss/vite` (Tailwind v4), `@tanstack/vue-query`, `@vueuse/core`, `vue-sonner`, `lucide-vue-next`, `reka-ui`, `class-variance-authority`, `clsx`, `tailwind-merge`, `nuxt-auth-utils` (Phase 5 — install early, enable later)
+- Install production deps: `@pinia/nuxt`, `shadcn-nuxt`, `@tailwindcss/vite` (Tailwind v4), `@tanstack/vue-query`, `@vueuse/core`, `vue-sonner`, `lucide-vue-next`, `reka-ui`, `class-variance-authority`, `clsx`, `tailwind-merge`, `nuxt-auth-utils` (Phase 5 — install early, enable later), `@vite-pwa/nuxt` (PWA support — configured in Step 11b)
 - Install dev deps: `@hey-api/openapi-ts`, `eslint`, `eslint-config-prettier`, `eslint-plugin-prettier`, `prettier`, `tw-animate-css`, `vue-tsc`
 - Configure `nuxt.config.ts`:
   - `modules: ['@nuxt/eslint', '@pinia/nuxt', 'shadcn-nuxt']`
@@ -443,6 +443,20 @@ agent = Agent(
   - Plugins: `@hey-api/typescript`, `@hey-api/sdk`, `@hey-api/client-fetch`
   - Output to `api/` directory with Prettier post-processing
 - `pnpm run api:generate` to create type-safe `api/client.gen.ts`, `api/sdk.gen.ts`, `api/types.gen.ts`
+
+**Step 11b. PWA integration** _(depends on Step 11)_
+
+- Add `'@vite-pwa/nuxt'` to the `modules` array in `nuxt.config.ts`
+- Configure `pwa` options in `nuxt.config.ts`:
+  - `registerType: 'autoUpdate'` — service worker auto-updates on new deployments
+  - `manifest` — app name ("TripPlannerAgent"), short name, description, `display: 'standalone'`, `theme_color` matching the cyan/teal travel theme, icons (192×192 + 512×512 + maskable)
+  - `workbox.navigateFallback: '/'` — offline shell falls back to cached chat page
+  - `workbox.globPatterns` — cache HTML, CSS, JS, images, fonts
+  - `workbox.runtimeCaching` — `CacheFirst` strategy for images (30-day expiration)
+  - `devOptions: { enabled: true, type: 'module' }` — enable in dev for testing
+- Create PWA icons in `public/icons/` (192×192, 512×512) + `favicon.ico`
+- Ensure meta tags: `<meta name="theme-color">`, Apple touch icon, viewport
+- Verify: Lighthouse PWA audit passes, app installs on mobile/desktop, service worker caches shell
 
 **Step 12. Chat interface components**
 
@@ -634,6 +648,7 @@ All OAuth lives **entirely in the Nuxt server layer (Nitro)** — the FastAPI ba
 | Frontend API client      | `@hey-api/openapi-ts` auto-generated SDK from FastAPI OpenAPI schema                                                  |
 | Frontend state           | Pinia stores                                                                                                          |
 | Frontend UI              | shadcn-vue (prefix `ui`), Tailwind v4, lucide-vue-next icons                                                          |
+| Frontend PWA             | `@vite-pwa/nuxt` — service worker, web manifest, installable app shell                                               |
 | Observability            | Logfire (FastAPI, httpx, asyncpg instruments)                                                                         |
 | Docker                   | Multi-stage builds, profile-based compose, non-root users, healthchecks                                               |
 | Anti-detection           | Xvfb headed mode, Playwright browser install in Docker                                                                |
