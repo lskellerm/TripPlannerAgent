@@ -1,0 +1,12 @@
+"""SQLAlchemy Base and shared model definitions.
+
+Provides the declarative ``Base`` class for all ORM models.
+"""
+
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+	"""Base class for all SQLAlchemy ORM models."""
+
+	pass
