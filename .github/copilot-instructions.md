@@ -173,7 +173,7 @@ All I/O operations must use async libraries — this is a hard architectural req
 
 ### Code Quality
 
-- **Backend**: Use **Ruff** for linting and formatting (`ruff check .`, `ruff format .`)
+- **Backend**: Use **Ruff** for linting and formatting (`ruff check .`, `ruff format .`) and **ty** for type checking (`uv run ty .`). Follow the patterns from `FinanceAutomaterPlatform-Backend` and `hol_automations` for module structure, Pydantic models, exception hierarchies, and async code.
 - **Frontend**: Use **ESLint** via `@nuxt/eslint` module (flat config) for linting + **Prettier** for formatting (`pnpm run lint`, `pnpm run format`). ESLint config is auto-generated in `.nuxt/eslint.config.mjs` and extended via the root `eslint.config.mjs`. Use `eslint-config-prettier` to disable ESLint rules that conflict with Prettier.
 - Pydantic models for all data validation and typed structures
 - Google-style docstrings for all modules, classes, and functions in python and Jsdoc for TypeScript, with `Args:`, `Returns:`, `Raises:` sections
