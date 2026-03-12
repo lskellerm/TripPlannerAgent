@@ -1,0 +1,13 @@
+{
+	"servers": {
+		"excalidraw": {
+			"type": "http",
+			"url": "https://mcp.excalidraw.com/mcp"
+		},
+		"figma": {
+			"type": "http",
+			"url": "https://mcp.figma.com/mcp"
+		},
+	},
+	"inputs": []
+}

@@ -1,0 +1,10 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "git.ignoreLimitWarning": true,
+    "chat.tools.terminal.autoApprove": {
+        "/^git init 2>/dev/null; git remote add origin https://github\\.com/lskellerm/TripPlannerAgent\\.git && git remote -v$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
