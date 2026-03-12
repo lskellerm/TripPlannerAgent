@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.nuxt/
+pnpm-lock.yaml
+.pnpm-home/
+
+backend/
+docker-compose.yml
+Dockerfile
+
+.git/
+.gitignore
+.prettierignore
