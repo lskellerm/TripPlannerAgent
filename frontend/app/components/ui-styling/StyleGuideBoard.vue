@@ -1,28 +1,6 @@
 <script setup lang="ts">
 import { AlertTriangle, CheckCircle2, Loader2, MapPin, Search, Send } from 'lucide-vue-next'
 
-useHead({
-  title: 'TripPlannerAgent UI Style Guide',
-})
-
-if (import.meta.dev) {
-  onMounted(() => {
-    if (!window.location.hash.includes('figmacapture=')) {
-      return
-    }
-
-    if (document.querySelector('script[data-figma-capture="true"]')) {
-      return
-    }
-
-    const captureScript = document.createElement('script')
-    captureScript.src = 'https://mcp.figma.com/mcp/html-to-design/capture.js'
-    captureScript.async = true
-    captureScript.dataset.figmaCapture = 'true'
-    document.head.appendChild(captureScript)
-  })
-}
-
 const toc = [
   { id: 'design-philosophy', label: 'Design Philosophy' },
   { id: 'color-system', label: 'Color System' },
