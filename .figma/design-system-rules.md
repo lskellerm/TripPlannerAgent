@@ -25,18 +25,18 @@
 
 ## Framework & Stack
 
-| Layer           | Technology                          | Notes                                                             |
-| --------------- | ----------------------------------- | ----------------------------------------------------------------- |
-| **Framework**   | Nuxt 3 (Vue 3)                      | `<script setup lang="ts">` composition API, strict TypeScript     |
-| **Styling**     | Tailwind CSS v4                      | via `@tailwindcss/vite` plugin                                    |
-| **Components**  | shadcn-vue                           | Owned in `app/components/ui/`, built on Reka UI                   |
-| **Primitives**  | Reka UI                              | Headless component primitives under shadcn-vue                    |
-| **Icons**       | Lucide                               | via `lucide-vue-next`, outline style                              |
-| **State**       | TanStack Query + Pinia               | Server data via TanStack Query; Pinia for UI-only client state    |
-| **API Client**  | `@hey-api/openapi-ts`                | Auto-generated typed SDK from FastAPI OpenAPI spec                 |
-| **Router**      | Nuxt file-based routing              | `app/pages/`                                                      |
-| **Build**       | Vite (via Nuxt)                      | SSR mode                                                          |
-| **Package Mgr** | pnpm                                 | Exclusively — never npm or yarn                                   |
+| Layer           | Technology              | Notes                                                          |
+| --------------- | ----------------------- | -------------------------------------------------------------- |
+| **Framework**   | Nuxt 3 (Vue 3)          | `<script setup lang="ts">` composition API, strict TypeScript  |
+| **Styling**     | Tailwind CSS v4         | via `@tailwindcss/vite` plugin                                 |
+| **Components**  | shadcn-vue              | Owned in `app/components/ui/`, built on Reka UI                |
+| **Primitives**  | Reka UI                 | Headless component primitives under shadcn-vue                 |
+| **Icons**       | Lucide                  | via `lucide-vue-next`, outline style                           |
+| **State**       | TanStack Query + Pinia  | Server data via TanStack Query; Pinia for UI-only client state |
+| **API Client**  | `@hey-api/openapi-ts`   | Auto-generated typed SDK from FastAPI OpenAPI spec             |
+| **Router**      | Nuxt file-based routing | `app/pages/`                                                   |
+| **Build**       | Vite (via Nuxt)         | SSR mode                                                       |
+| **Package Mgr** | pnpm                    | Exclusively — never npm or yarn                                |
 
 ---
 
@@ -50,36 +50,36 @@ TripPlannerAgent uses a cyan-primary / slate-neutral OKLCH color scheme with ful
 
 #### Core Palette (Light Mode — `:root`)
 
-| Token                    | OKLCH Value                      | Usage                                         |
-| ------------------------ | -------------------------------- | --------------------------------------------- |
-| `--background`           | `oklch(1 0 0)`                   | Page background — pure white                  |
-| `--foreground`           | `oklch(0.129 0.042 264.695)`     | Primary text — deep slate                     |
-| `--card`                 | `oklch(1 0 0)`                   | Card surfaces                                 |
-| `--card-foreground`      | `oklch(0.129 0.042 264.695)`     | Card text                                     |
-| `--primary`              | `oklch(0.609 0.126 221.723)`     | Brand cyan — CTAs, active nav, accents        |
-| `--primary-foreground`   | `oklch(0.985 0 0)`               | Text on primary backgrounds                   |
-| `--secondary`            | `oklch(0.968 0.007 247.896)`     | Subtle slate background                       |
-| `--secondary-foreground` | `oklch(0.208 0.042 265.755)`     | Text on secondary backgrounds                 |
-| `--muted`                | `oklch(0.968 0.007 247.896)`     | Muted backgrounds — empty states, subtle UI   |
-| `--muted-foreground`     | `oklch(0.554 0.046 257.417)`     | Muted text — timestamps, secondary labels     |
-| `--accent`               | `oklch(0.968 0.007 247.896)`     | Accent backgrounds — subtle cyan-tinted gray  |
-| `--accent-foreground`    | `oklch(0.208 0.042 265.755)`     | Text on accent backgrounds                    |
-| `--border`               | `oklch(0.929 0.013 255.508)`     | Borders, dividers — cool slate tone           |
-| `--input`                | `oklch(0.929 0.013 255.508)`     | Input borders                                 |
-| `--ring`                 | `oklch(0.609 0.126 221.723)`     | Focus ring — matches primary cyan             |
+| Token                    | OKLCH Value                  | Usage                                        |
+| ------------------------ | ---------------------------- | -------------------------------------------- |
+| `--background`           | `oklch(1 0 0)`               | Page background — pure white                 |
+| `--foreground`           | `oklch(0.129 0.042 264.695)` | Primary text — deep slate                    |
+| `--card`                 | `oklch(1 0 0)`               | Card surfaces                                |
+| `--card-foreground`      | `oklch(0.129 0.042 264.695)` | Card text                                    |
+| `--primary`              | `oklch(0.609 0.126 221.723)` | Brand cyan — CTAs, active nav, accents       |
+| `--primary-foreground`   | `oklch(0.985 0 0)`           | Text on primary backgrounds                  |
+| `--secondary`            | `oklch(0.968 0.007 247.896)` | Subtle slate background                      |
+| `--secondary-foreground` | `oklch(0.208 0.042 265.755)` | Text on secondary backgrounds                |
+| `--muted`                | `oklch(0.968 0.007 247.896)` | Muted backgrounds — empty states, subtle UI  |
+| `--muted-foreground`     | `oklch(0.554 0.046 257.417)` | Muted text — timestamps, secondary labels    |
+| `--accent`               | `oklch(0.968 0.007 247.896)` | Accent backgrounds — subtle cyan-tinted gray |
+| `--accent-foreground`    | `oklch(0.208 0.042 265.755)` | Text on accent backgrounds                   |
+| `--border`               | `oklch(0.929 0.013 255.508)` | Borders, dividers — cool slate tone          |
+| `--input`                | `oklch(0.929 0.013 255.508)` | Input borders                                |
+| `--ring`                 | `oklch(0.609 0.126 221.723)` | Focus ring — matches primary cyan            |
 
 #### Semantic Colors (Light Mode)
 
-| Token                      | OKLCH Value                      | Usage                                              |
-| -------------------------- | -------------------------------- | -------------------------------------------------- |
-| `--destructive`            | `oklch(0.577 0.245 27.325)`     | Errors, failures, destructive actions              |
-| `--destructive-foreground` | `oklch(0.985 0 0)`              | Text on destructive backgrounds                    |
-| `--success`                | `oklch(0.596 0.145 163.225)`    | Completed operations, successful results           |
-| `--success-foreground`     | `oklch(0.985 0 0)`              | Text on success backgrounds                        |
-| `--warning`                | `oklch(0.769 0.188 70.08)`      | Rate limiting, scraping cautions, attention states  |
-| `--warning-foreground`     | `oklch(0.208 0.042 265.755)`    | Text on warning backgrounds                        |
-| `--info`                   | `oklch(0.685 0.169 237.323)`    | Informational toasts, tool usage progress badges   |
-| `--info-foreground`        | `oklch(0.985 0 0)`              | Text on info backgrounds                           |
+| Token                      | OKLCH Value                  | Usage                                              |
+| -------------------------- | ---------------------------- | -------------------------------------------------- |
+| `--destructive`            | `oklch(0.577 0.245 27.325)`  | Errors, failures, destructive actions              |
+| `--destructive-foreground` | `oklch(0.985 0 0)`           | Text on destructive backgrounds                    |
+| `--success`                | `oklch(0.596 0.145 163.225)` | Completed operations, successful results           |
+| `--success-foreground`     | `oklch(0.985 0 0)`           | Text on success backgrounds                        |
+| `--warning`                | `oklch(0.769 0.188 70.08)`   | Rate limiting, scraping cautions, attention states |
+| `--warning-foreground`     | `oklch(0.208 0.042 265.755)` | Text on warning backgrounds                        |
+| `--info`                   | `oklch(0.685 0.169 237.323)` | Informational toasts, tool usage progress badges   |
+| `--info-foreground`        | `oklch(0.985 0 0)`           | Text on info backgrounds                           |
 
 #### Dark Mode (`.dark`)
 
@@ -89,15 +89,15 @@ Dark mode inverts the surface hierarchy (deep slate backgrounds, elevated cards 
 
 The AI agent progresses through distinct states during trip planning. Use semantic colors for status badges:
 
-| Status           | Color Token     | Usage                                                |
-| ---------------- | --------------- | ---------------------------------------------------- |
-| `searching`      | `info`          | Agent is searching Airbnb — "🔍 Searching..."       |
-| `parsing`        | `info`          | Agent is extracting listing data — "📄 Parsing..."  |
-| `calculating`    | `primary`       | Agent is computing costs — "💰 Calculating..."      |
-| `ranking`        | `primary`       | Agent is ranking results — "📊 Ranking..."          |
-| `complete`       | `success`       | Agent has finished — results displayed               |
-| `error`          | `destructive`   | Something went wrong — error card with retry         |
-| `rate-limited`   | `warning`       | Airbnb anti-bot detected — switching to cached mode  |
+| Status         | Color Token   | Usage                                               |
+| -------------- | ------------- | --------------------------------------------------- |
+| `searching`    | `info`        | Agent is searching Airbnb — "🔍 Searching..."       |
+| `parsing`      | `info`        | Agent is extracting listing data — "📄 Parsing..."  |
+| `calculating`  | `primary`     | Agent is computing costs — "💰 Calculating..."      |
+| `ranking`      | `primary`     | Agent is ranking results — "📊 Ranking..."          |
+| `complete`     | `success`     | Agent has finished — results displayed              |
+| `error`        | `destructive` | Something went wrong — error card with retry        |
+| `rate-limited` | `warning`     | Airbnb anti-bot detected — switching to cached mode |
 
 ### Tailwind Token Mapping
 
@@ -172,17 +172,17 @@ borderRadius: {
 
 TripPlannerAgent uses the system font stack (Tailwind defaults — Inter / system-ui). No custom heading font — the interface is functional and data-dense, not decorative.
 
-| Element           | Weight       | Tailwind Classes            | Usage                                            |
-| ----------------- | ------------ | --------------------------- | ------------------------------------------------ |
-| **Page Title**    | 700 (bold)   | `text-2xl font-bold`        | App branding header                              |
-| **Section**       | 600 (semi)   | `text-xl font-semibold`     | Week headers, result section titles              |
-| **Card Title**    | 600 (semi)   | `text-lg font-semibold`     | Listing names, cost table headers                |
-| **Subtitle**      | 500 (medium) | `text-base font-medium`     | Sub-headings, emphasized labels                  |
-| **Body**          | 400 (normal) | `text-sm`                   | Chat messages, descriptions, form labels         |
-| **Body Small**    | 400 (normal) | `text-xs`                   | Helper text, timestamps, secondary info          |
-| **Caption**       | 600 (semi)   | `text-xs font-semibold`     | Badge labels, metadata, tool status indicators   |
-| **Cost/Price**    | 600 (semi)   | `text-lg font-semibold`     | Per-person costs, nightly rates, total prices    |
-| **Button**        | 500 (medium) | `text-sm font-medium`       | All button labels                                |
+| Element        | Weight       | Tailwind Classes        | Usage                                          |
+| -------------- | ------------ | ----------------------- | ---------------------------------------------- |
+| **Page Title** | 700 (bold)   | `text-2xl font-bold`    | App branding header                            |
+| **Section**    | 600 (semi)   | `text-xl font-semibold` | Week headers, result section titles            |
+| **Card Title** | 600 (semi)   | `text-lg font-semibold` | Listing names, cost table headers              |
+| **Subtitle**   | 500 (medium) | `text-base font-medium` | Sub-headings, emphasized labels                |
+| **Body**       | 400 (normal) | `text-sm`               | Chat messages, descriptions, form labels       |
+| **Body Small** | 400 (normal) | `text-xs`               | Helper text, timestamps, secondary info        |
+| **Caption**    | 600 (semi)   | `text-xs font-semibold` | Badge labels, metadata, tool status indicators |
+| **Cost/Price** | 600 (semi)   | `text-lg font-semibold` | Per-person costs, nightly rates, total prices  |
+| **Button**     | 500 (medium) | `text-sm font-medium`   | All button labels                              |
 
 **Rules**:
 
@@ -199,13 +199,13 @@ All components live in `app/components/ui/` and are auto-imported by Nuxt via `s
 
 ### Available Components
 
-| Component  | Import Path                       | Sub-components                                                    |
-| ---------- | --------------------------------- | ----------------------------------------------------------------- |
-| **Badge**  | `~/app/components/ui/badge`       | Badge                                                             |
-| **Button** | `~/app/components/ui/button`      | Button                                                            |
-| **Card**   | `~/app/components/ui/card`        | Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter |
-| **Input**  | `~/app/components/ui/input`       | Input                                                             |
-| **Sonner** | `~/app/components/ui/sonner`      | Toaster (Sonner)                                                  |
+| Component  | Import Path                  | Sub-components                                                        |
+| ---------- | ---------------------------- | --------------------------------------------------------------------- |
+| **Badge**  | `~/app/components/ui/badge`  | Badge                                                                 |
+| **Button** | `~/app/components/ui/button` | Button                                                                |
+| **Card**   | `~/app/components/ui/card`   | Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter |
+| **Input**  | `~/app/components/ui/input`  | Input                                                                 |
+| **Sonner** | `~/app/components/ui/sonner` | Toaster (Sonner)                                                      |
 
 Additional shadcn-vue components should be added via `npx shadcn-vue@latest add <component>` as needed.
 
@@ -218,14 +218,14 @@ variants: {
 }
 ```
 
-| Variant       | Background      | Text                  | Usage                                           |
-| ------------- | --------------- | --------------------- | ----------------------------------------------- |
-| `default`     | `primary`       | `primary-foreground`  | Primary CTAs (Send message, Start search)       |
-| `secondary`   | `secondary`     | `secondary-foreground`| Secondary actions (View listing, Copy link)     |
-| `outline`     | `background`    | text with border      | Tertiary actions, filter toggles                |
-| `ghost`       | transparent     | `accent-foreground`   | Subtle actions (Close, Dismiss, icon buttons)   |
-| `destructive` | `destructive`   | `destructive-fg`      | Dangerous actions (Clear chat, Cancel search)   |
-| `link`        | transparent     | `primary`             | Inline text links (Airbnb listing URL)          |
+| Variant       | Background    | Text                   | Usage                                         |
+| ------------- | ------------- | ---------------------- | --------------------------------------------- |
+| `default`     | `primary`     | `primary-foreground`   | Primary CTAs (Send message, Start search)     |
+| `secondary`   | `secondary`   | `secondary-foreground` | Secondary actions (View listing, Copy link)   |
+| `outline`     | `background`  | text with border       | Tertiary actions, filter toggles              |
+| `ghost`       | transparent   | `accent-foreground`    | Subtle actions (Close, Dismiss, icon buttons) |
+| `destructive` | `destructive` | `destructive-fg`       | Dangerous actions (Clear chat, Cancel search) |
+| `link`        | transparent   | `primary`              | Inline text links (Airbnb listing URL)        |
 
 ### Badge Patterns
 
@@ -244,16 +244,16 @@ Four variants via CVA:
 
 Beyond shadcn-vue, TripPlannerAgent defines these domain-specific components (to be built):
 
-| Component          | Location                | Purpose                                                          |
-| ------------------ | ----------------------- | ---------------------------------------------------------------- |
-| **ChatMessage**    | `app/components/chat/`  | Renders user or agent message bubble with markdown support       |
-| **ChatInput**      | `app/components/chat/`  | Text input + send button, fixed to bottom of chat area           |
-| **ListingCard**    | `app/components/chat/`  | Airbnb listing card: title, neighborhood, beds/baths, price, rating, amenities |
-| **CostTable**      | `app/components/chat/`  | Tabular cost breakdown: total, per-person, per-night, fees       |
-| **WeekSummary**    | `app/components/chat/`  | Week header with date range, participant count, best picks       |
-| **ToolBadge**      | `app/components/chat/`  | Inline status badge showing current agent tool (Searching, Parsing, etc.) |
-| **StreamingDots**  | `app/components/chat/`  | Animated typing/thinking indicator for agent responses           |
-| **ErrorCard**      | `app/components/chat/`  | Error display with message, suggestions, and retry button        |
+| Component         | Location               | Purpose                                                                        |
+| ----------------- | ---------------------- | ------------------------------------------------------------------------------ |
+| **ChatMessage**   | `app/components/chat/` | Renders user or agent message bubble with markdown support                     |
+| **ChatInput**     | `app/components/chat/` | Text input + send button, fixed to bottom of chat area                         |
+| **ListingCard**   | `app/components/chat/` | Airbnb listing card: title, neighborhood, beds/baths, price, rating, amenities |
+| **CostTable**     | `app/components/chat/` | Tabular cost breakdown: total, per-person, per-night, fees                     |
+| **WeekSummary**   | `app/components/chat/` | Week header with date range, participant count, best picks                     |
+| **ToolBadge**     | `app/components/chat/` | Inline status badge showing current agent tool (Searching, Parsing, etc.)      |
+| **StreamingDots** | `app/components/chat/` | Animated typing/thinking indicator for agent responses                         |
+| **ErrorCard**     | `app/components/chat/` | Error display with message, suggestions, and retry button                      |
 
 ---
 
@@ -268,20 +268,20 @@ Beyond shadcn-vue, TripPlannerAgent defines these domain-specific components (to
 
 ### Common Icons
 
-| Context          | Icon              | Usage                                    |
-| ---------------- | ----------------- | ---------------------------------------- |
-| Send message     | `Send`            | Chat input send button                   |
-| Agent thinking   | `Loader2`         | Animated spinner during streaming        |
-| Airbnb link      | `ExternalLink`    | Open listing in new tab                  |
-| Rating           | `Star`            | Listing rating display                   |
-| Beds             | `Bed`             | Bed count badge                          |
-| Location         | `MapPin`          | Neighborhood label                       |
-| Price            | `DollarSign`      | Cost breakdown header                    |
-| Error            | `AlertCircle`     | Error state indicator                    |
-| Success          | `CheckCircle`     | Completed search, confirmed results      |
-| Search           | `Search`          | Searching Airbnb tool badge              |
-| Calendar         | `Calendar`        | Check-in / check-out dates              |
-| Users            | `Users`           | Participant count                        |
+| Context        | Icon           | Usage                               |
+| -------------- | -------------- | ----------------------------------- |
+| Send message   | `Send`         | Chat input send button              |
+| Agent thinking | `Loader2`      | Animated spinner during streaming   |
+| Airbnb link    | `ExternalLink` | Open listing in new tab             |
+| Rating         | `Star`         | Listing rating display              |
+| Beds           | `Bed`          | Bed count badge                     |
+| Location       | `MapPin`       | Neighborhood label                  |
+| Price          | `DollarSign`   | Cost breakdown header               |
+| Error          | `AlertCircle`  | Error state indicator               |
+| Success        | `CheckCircle`  | Completed search, confirmed results |
+| Search         | `Search`       | Searching Airbnb tool badge         |
+| Calendar       | `Calendar`     | Check-in / check-out dates          |
+| Users          | `Users`        | Participant count                   |
 
 ---
 
@@ -289,15 +289,15 @@ Beyond shadcn-vue, TripPlannerAgent defines these domain-specific components (to
 
 ### Motion Conventions
 
-| Animation Type        | Duration | Easing      | Implementation              |
-| --------------------- | -------- | ----------- | --------------------------- |
-| Page transition       | 200ms    | ease-out    | `<Transition>` on NuxtPage  |
-| Chat message enter    | 300ms    | ease-out    | CSS `@keyframes` fade + slide-up |
-| Streaming dots        | looped   | ease-in-out | CSS `@keyframes` pulse      |
-| Hover effect          | 150ms    | ease-in-out | Tailwind `transition-colors` |
-| Card shadow hover     | 200ms    | ease-in-out | `transition-shadow`         |
-| Button press          | instant  | —           | `active:scale-[0.98]`       |
-| Toast enter           | 300ms    | ease-out    | Sonner built-in             |
+| Animation Type     | Duration | Easing      | Implementation                   |
+| ------------------ | -------- | ----------- | -------------------------------- |
+| Page transition    | 200ms    | ease-out    | `<Transition>` on NuxtPage       |
+| Chat message enter | 300ms    | ease-out    | CSS `@keyframes` fade + slide-up |
+| Streaming dots     | looped   | ease-in-out | CSS `@keyframes` pulse           |
+| Hover effect       | 150ms    | ease-in-out | Tailwind `transition-colors`     |
+| Card shadow hover  | 200ms    | ease-in-out | `transition-shadow`              |
+| Button press       | instant  | —           | `active:scale-[0.98]`            |
+| Toast enter        | 300ms    | ease-out    | Sonner built-in                  |
 
 **Maximum animation duration**: 400ms. Nothing should feel sluggish.
 
@@ -324,14 +324,14 @@ Beyond shadcn-vue, TripPlannerAgent defines these domain-specific components (to
 
 ### Visual Style Summary
 
-| Property          | Value                                                    | Tailwind                                  |
-| ----------------- | -------------------------------------------------------- | ----------------------------------------- |
-| **Border radius** | `--radius: 0.625rem` (10px base), computed sm/md/lg/xl  | `rounded-sm`, `rounded-md`, `rounded-lg`, `rounded-xl` |
-| **Shadows**       | Subtle, standard Tailwind shadows                        | `shadow` on cards, `shadow-sm` on inputs  |
-| **Borders**       | OKLCH slate border token                                 | `border border-border`                    |
-| **Focus rings**   | Primary cyan ring                                        | `ring-1 ring-ring`                        |
-| **Spacing base**  | 4px increments                                           | Tailwind spacing scale                    |
-| **Max content**   | Chat-focused — full height, constrained width            | `max-w-3xl mx-auto` for chat area         |
+| Property          | Value                                                  | Tailwind                                               |
+| ----------------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| **Border radius** | `--radius: 0.625rem` (10px base), computed sm/md/lg/xl | `rounded-sm`, `rounded-md`, `rounded-lg`, `rounded-xl` |
+| **Shadows**       | Subtle, standard Tailwind shadows                      | `shadow` on cards, `shadow-sm` on inputs               |
+| **Borders**       | OKLCH slate border token                               | `border border-border`                                 |
+| **Focus rings**   | Primary cyan ring                                      | `ring-1 ring-ring`                                     |
+| **Spacing base**  | 4px increments                                         | Tailwind spacing scale                                 |
+| **Max content**   | Chat-focused — full height, constrained width          | `max-w-3xl mx-auto` for chat area                      |
 
 ---
 

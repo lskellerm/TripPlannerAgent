@@ -57,23 +57,23 @@ TripPlannerAgent uses an OKLCH color system with full **light and dark mode** su
 
 Defined in `:root`.
 
-| Token                    | OKLCH Value                      | Description                                  |
-| ------------------------ | -------------------------------- | -------------------------------------------- |
-| `--background`           | `oklch(1 0 0)`                   | Pure white page background                   |
-| `--foreground`           | `oklch(0.129 0.042 264.695)`     | Deep slate — primary text color              |
-| `--card`                 | `oklch(1 0 0)`                   | Card surface — same as background            |
-| `--card-foreground`      | `oklch(0.129 0.042 264.695)`     | Card text — same as foreground               |
-| `--primary`              | `oklch(0.609 0.126 221.723)`     | Cyan-600 — brand accent, CTAs, focus rings   |
-| `--primary-foreground`   | `oklch(0.985 0 0)`               | White — text on primary backgrounds          |
-| `--secondary`            | `oklch(0.968 0.007 247.896)`     | Subtle slate — secondary backgrounds         |
-| `--secondary-foreground` | `oklch(0.208 0.042 265.755)`     | Dark slate — text on secondary backgrounds   |
-| `--muted`                | `oklch(0.968 0.007 247.896)`     | Muted backgrounds — empty states, subtle UI  |
-| `--muted-foreground`     | `oklch(0.554 0.046 257.417)`     | Muted text — timestamps, secondary labels    |
-| `--accent`               | `oklch(0.968 0.007 247.896)`     | Accent surface — hoverable elements          |
-| `--accent-foreground`    | `oklch(0.208 0.042 265.755)`     | Text on accent surfaces                      |
-| `--border`               | `oklch(0.929 0.013 255.508)`     | Cool slate — borders, dividers               |
-| `--input`                | `oklch(0.929 0.013 255.508)`     | Input borders — matches general border       |
-| `--ring`                 | `oklch(0.609 0.126 221.723)`     | Focus ring — matches primary cyan            |
+| Token                    | OKLCH Value                  | Description                                 |
+| ------------------------ | ---------------------------- | ------------------------------------------- |
+| `--background`           | `oklch(1 0 0)`               | Pure white page background                  |
+| `--foreground`           | `oklch(0.129 0.042 264.695)` | Deep slate — primary text color             |
+| `--card`                 | `oklch(1 0 0)`               | Card surface — same as background           |
+| `--card-foreground`      | `oklch(0.129 0.042 264.695)` | Card text — same as foreground              |
+| `--primary`              | `oklch(0.609 0.126 221.723)` | Cyan-600 — brand accent, CTAs, focus rings  |
+| `--primary-foreground`   | `oklch(0.985 0 0)`           | White — text on primary backgrounds         |
+| `--secondary`            | `oklch(0.968 0.007 247.896)` | Subtle slate — secondary backgrounds        |
+| `--secondary-foreground` | `oklch(0.208 0.042 265.755)` | Dark slate — text on secondary backgrounds  |
+| `--muted`                | `oklch(0.968 0.007 247.896)` | Muted backgrounds — empty states, subtle UI |
+| `--muted-foreground`     | `oklch(0.554 0.046 257.417)` | Muted text — timestamps, secondary labels   |
+| `--accent`               | `oklch(0.968 0.007 247.896)` | Accent surface — hoverable elements         |
+| `--accent-foreground`    | `oklch(0.208 0.042 265.755)` | Text on accent surfaces                     |
+| `--border`               | `oklch(0.929 0.013 255.508)` | Cool slate — borders, dividers              |
+| `--input`                | `oklch(0.929 0.013 255.508)` | Input borders — matches general border      |
+| `--ring`                 | `oklch(0.609 0.126 221.723)` | Focus ring — matches primary cyan           |
 
 ### Core Palette — Dark Mode
 
@@ -83,16 +83,16 @@ Defined in `.dark`. Surfaces invert: deep slate backgrounds with lighter elevate
 
 Defined in both light and dark modes. Dark mode variants are brighter for contrast on dark surfaces.
 
-| Token                      | Usage (Light)                              | Light OKLCH                      |
-| -------------------------- | ------------------------------------------ | -------------------------------- |
-| `--destructive`            | Errors, failures, destructive actions      | `oklch(0.577 0.245 27.325)`    |
-| `--destructive-foreground` | Text on destructive backgrounds            | `oklch(0.985 0 0)`             |
-| `--success`                | Completed operations, successful results   | `oklch(0.596 0.145 163.225)`   |
-| `--success-foreground`     | Text on success backgrounds                | `oklch(0.985 0 0)`             |
-| `--warning`                | Rate limiting, scraping cautions, attention | `oklch(0.769 0.188 70.08)`     |
-| `--warning-foreground`     | Text on warning backgrounds                | `oklch(0.208 0.042 265.755)`   |
-| `--info`                   | Informational toasts, tool progress badges | `oklch(0.685 0.169 237.323)`   |
-| `--info-foreground`        | Text on info backgrounds                   | `oklch(0.985 0 0)`             |
+| Token                      | Usage (Light)                               | Light OKLCH                  |
+| -------------------------- | ------------------------------------------- | ---------------------------- |
+| `--destructive`            | Errors, failures, destructive actions       | `oklch(0.577 0.245 27.325)`  |
+| `--destructive-foreground` | Text on destructive backgrounds             | `oklch(0.985 0 0)`           |
+| `--success`                | Completed operations, successful results    | `oklch(0.596 0.145 163.225)` |
+| `--success-foreground`     | Text on success backgrounds                 | `oklch(0.985 0 0)`           |
+| `--warning`                | Rate limiting, scraping cautions, attention | `oklch(0.769 0.188 70.08)`   |
+| `--warning-foreground`     | Text on warning backgrounds                 | `oklch(0.208 0.042 265.755)` |
+| `--info`                   | Informational toasts, tool progress badges  | `oklch(0.685 0.169 237.323)` |
+| `--info-foreground`        | Text on info backgrounds                    | `oklch(0.985 0 0)`           |
 
 ### Color Usage Guidelines
 
@@ -117,17 +117,17 @@ TripPlannerAgent uses a single font stack — the Tailwind default system font. 
 
 ### Type Scale
 
-| Role              | Tailwind Class | Size | Weight                | Usage                                             |
-| ----------------- | -------------- | ---- | --------------------- | ------------------------------------------------- |
-| **Page Title**    | `text-2xl`     | 24px | `font-bold` (700)     | App header branding                               |
-| **Section Title** | `text-xl`      | 20px | `font-semibold` (600) | Week headers, result group titles                 |
-| **Card Title**    | `text-lg`      | 18px | `font-semibold` (600) | Listing names, cost table headers                 |
-| **Subtitle**      | `text-base`    | 16px | `font-medium` (500)   | Sub-headings, emphasized labels                   |
-| **Body**          | `text-sm`      | 14px | `font-normal` (400)   | Chat messages, descriptions, listing details      |
-| **Body Small**    | `text-xs`      | 12px | `font-normal` (400)   | Timestamps, helper text, secondary metadata       |
-| **Caption**       | `text-xs`      | 12px | `font-semibold` (600) | Badge labels, tool status indicators              |
-| **Cost/Price**    | `text-lg`      | 18px | `font-semibold` (600) | Per-person costs, nightly rates, total prices     |
-| **Button Label**  | `text-sm`      | 14px | `font-medium` (500)   | All button text                                   |
+| Role              | Tailwind Class | Size | Weight                | Usage                                         |
+| ----------------- | -------------- | ---- | --------------------- | --------------------------------------------- |
+| **Page Title**    | `text-2xl`     | 24px | `font-bold` (700)     | App header branding                           |
+| **Section Title** | `text-xl`      | 20px | `font-semibold` (600) | Week headers, result group titles             |
+| **Card Title**    | `text-lg`      | 18px | `font-semibold` (600) | Listing names, cost table headers             |
+| **Subtitle**      | `text-base`    | 16px | `font-medium` (500)   | Sub-headings, emphasized labels               |
+| **Body**          | `text-sm`      | 14px | `font-normal` (400)   | Chat messages, descriptions, listing details  |
+| **Body Small**    | `text-xs`      | 12px | `font-normal` (400)   | Timestamps, helper text, secondary metadata   |
+| **Caption**       | `text-xs`      | 12px | `font-semibold` (600) | Badge labels, tool status indicators          |
+| **Cost/Price**    | `text-lg`      | 18px | `font-semibold` (600) | Per-person costs, nightly rates, total prices |
+| **Button Label**  | `text-sm`      | 14px | `font-medium` (500)   | All button text                               |
 
 ### Typography Rules
 
@@ -146,17 +146,17 @@ TripPlannerAgent uses a single font stack — the Tailwind default system font. 
 
 Use Tailwind's 4px-based spacing scale consistently:
 
-| Token | Value | Usage                                                              |
-| ----- | ----- | ------------------------------------------------------------------ |
-| `1`   | 4px   | Icon-to-text gaps, tight internal padding                          |
-| `2`   | 8px   | Badge padding, compact element spacing, message bubble gap         |
-| `3`   | 12px  | Input padding, small card internal spacing                         |
-| `4`   | 16px  | Card padding, standard element gap, chat message spacing           |
-| `5`   | 20px  | Grid gaps between listing cards                                    |
-| `6`   | 24px  | Card padding (large), section margin                               |
-| `8`   | 32px  | Section spacing, page padding                                      |
-| `10`  | 40px  | Large section gaps                                                 |
-| `12`  | 48px  | Page top/bottom margin                                             |
+| Token | Value | Usage                                                      |
+| ----- | ----- | ---------------------------------------------------------- |
+| `1`   | 4px   | Icon-to-text gaps, tight internal padding                  |
+| `2`   | 8px   | Badge padding, compact element spacing, message bubble gap |
+| `3`   | 12px  | Input padding, small card internal spacing                 |
+| `4`   | 16px  | Card padding, standard element gap, chat message spacing   |
+| `5`   | 20px  | Grid gaps between listing cards                            |
+| `6`   | 24px  | Card padding (large), section margin                       |
+| `8`   | 32px  | Section spacing, page padding                              |
+| `10`  | 40px  | Large section gaps                                         |
+| `12`  | 48px  | Page top/bottom margin                                     |
 
 ### Layout Patterns
 
@@ -168,13 +168,13 @@ Use Tailwind's 4px-based spacing scale consistently:
 
 ### Grid & Container
 
-| Context            | Container Width | Padding           |
-| ------------------ | --------------- | ----------------- |
-| Chat message area  | `max-w-3xl`     | `px-4`            |
-| Chat input         | `max-w-3xl`     | `px-4`            |
-| Header             | full width      | `px-4 sm:px-6`   |
-| Listing card grid  | within message  | `gap-4`           |
-| Cost table         | within message  | `p-4`             |
+| Context           | Container Width | Padding        |
+| ----------------- | --------------- | -------------- |
+| Chat message area | `max-w-3xl`     | `px-4`         |
+| Chat input        | `max-w-3xl`     | `px-4`         |
+| Header            | full width      | `px-4 sm:px-6` |
+| Listing card grid | within message  | `gap-4`        |
+| Cost table        | within message  | `p-4`          |
 
 ### Responsive Breakpoints
 
@@ -194,14 +194,14 @@ TripPlannerAgent is designed **desktop-first** (primary use is trip planning on 
 
 All border-radius values derive from `--radius: 0.625rem` (10px) defined in `main.css`:
 
-| Element               | Computed Radius          | Tailwind Class  |
-| --------------------- | ------------------------ | --------------- |
-| **Buttons**           | `calc(--radius - 2px)`  | `rounded-md`    |
-| **Cards**             | `calc(--radius + 4px)`  | `rounded-xl`    |
-| **Inputs**            | `calc(--radius - 2px)`  | `rounded-md`    |
-| **Badges**            | `calc(--radius - 2px)`  | `rounded-md`    |
-| **Chat bubbles**      | `var(--radius)`          | `rounded-lg`    |
-| **Modals/Dialogs**    | `calc(--radius + 4px)`  | `rounded-xl`    |
+| Element            | Computed Radius        | Tailwind Class |
+| ------------------ | ---------------------- | -------------- |
+| **Buttons**        | `calc(--radius - 2px)` | `rounded-md`   |
+| **Cards**          | `calc(--radius + 4px)` | `rounded-xl`   |
+| **Inputs**         | `calc(--radius - 2px)` | `rounded-md`   |
+| **Badges**         | `calc(--radius - 2px)` | `rounded-md`   |
+| **Chat bubbles**   | `var(--radius)`        | `rounded-lg`   |
+| **Modals/Dialogs** | `calc(--radius + 4px)` | `rounded-xl`   |
 
 **Rule**: TripPlannerAgent favors consistent, moderate rounding — not sharp, not pillowed. Badges are `rounded-md` (not `rounded-full`) per the actual CVA definitions.
 
@@ -242,20 +242,20 @@ Subtle, standard Tailwind shadows — no custom warm-tinted shadows:
 
 ### Key Icons
 
-| Context        | Icon           | Usage                              |
-| -------------- | -------------- | ---------------------------------- |
-| Send message   | `Send`         | Chat input send button             |
-| Agent thinking | `Loader2`      | Animated spin during streaming     |
-| Airbnb link    | `ExternalLink` | Open listing in new tab            |
-| Rating         | `Star`         | Listing rating display             |
-| Beds           | `Bed`          | Bed count badge                    |
-| Location       | `MapPin`       | Neighborhood label                 |
-| Price          | `DollarSign`   | Cost breakdown header              |
-| Error          | `AlertCircle`  | Error state indicator              |
-| Success        | `CheckCircle`  | Completed search                   |
-| Search         | `Search`       | Searching tool badge               |
-| Calendar       | `Calendar`     | Check-in / check-out dates         |
-| Participants   | `Users`        | Participant count                  |
+| Context        | Icon           | Usage                          |
+| -------------- | -------------- | ------------------------------ |
+| Send message   | `Send`         | Chat input send button         |
+| Agent thinking | `Loader2`      | Animated spin during streaming |
+| Airbnb link    | `ExternalLink` | Open listing in new tab        |
+| Rating         | `Star`         | Listing rating display         |
+| Beds           | `Bed`          | Bed count badge                |
+| Location       | `MapPin`       | Neighborhood label             |
+| Price          | `DollarSign`   | Cost breakdown header          |
+| Error          | `AlertCircle`  | Error state indicator          |
+| Success        | `CheckCircle`  | Completed search               |
+| Search         | `Search`       | Searching tool badge           |
+| Calendar       | `Calendar`     | Check-in / check-out dates     |
+| Participants   | `Users`        | Participant count              |
 
 ---
 
@@ -263,15 +263,15 @@ Subtle, standard Tailwind shadows — no custom warm-tinted shadows:
 
 ### Transition Patterns
 
-| Trigger                 | Animation                    | Implementation                       |
-| ----------------------- | ---------------------------- | ------------------------------------ |
-| **Page transition**     | Gentle fade (200ms)          | Vue `<Transition>` on `<NuxtPage>`   |
-| **Chat message enter**  | Fade + slide-up (300ms)      | CSS `@keyframes` transition          |
-| **Streaming dots**      | Looping pulse                | CSS `@keyframes` with `ease-in-out`  |
-| **Toast enter**         | Slide from top (300ms)       | Sonner built-in                      |
-| **Button hover**        | Background transition        | `transition-colors duration-150`     |
-| **Card hover shadow**   | Shadow elevation             | `transition-shadow duration-200`     |
-| **Button press**        | Slight scale-down            | `active:scale-[0.98]`               |
+| Trigger                | Animation               | Implementation                      |
+| ---------------------- | ----------------------- | ----------------------------------- |
+| **Page transition**    | Gentle fade (200ms)     | Vue `<Transition>` on `<NuxtPage>`  |
+| **Chat message enter** | Fade + slide-up (300ms) | CSS `@keyframes` transition         |
+| **Streaming dots**     | Looping pulse           | CSS `@keyframes` with `ease-in-out` |
+| **Toast enter**        | Slide from top (300ms)  | Sonner built-in                     |
+| **Button hover**       | Background transition   | `transition-colors duration-150`    |
+| **Card hover shadow**  | Shadow elevation        | `transition-shadow duration-200`    |
+| **Button press**       | Slight scale-down       | `active:scale-[0.98]`               |
 
 ### Motion Guidelines
 
@@ -290,14 +290,14 @@ Subtle, standard Tailwind shadows — no custom warm-tinted shadows:
 
 Buttons use CVA variants from `app/components/ui/button/index.ts`:
 
-| Variant         | Background    | Text                  | Usage                                          |
-| --------------- | ------------- | --------------------- | ---------------------------------------------- |
-| **default**     | `primary`     | `primary-foreground`  | Main CTAs: Send message, Start search          |
-| **secondary**   | `secondary`   | `secondary-foreground`| Secondary actions: View listing, Copy link     |
-| **outline**     | `background`  | token text + border   | Tertiary: filter toggles, sort options         |
-| **ghost**       | transparent   | `accent-foreground`   | Subtle: Close, Dismiss, icon-only buttons      |
-| **destructive** | `destructive` | `destructive-fg`      | Dangerous: Clear chat, Cancel search           |
-| **link**        | transparent   | `primary`             | Inline text links: Airbnb listing URL          |
+| Variant         | Background    | Text                   | Usage                                      |
+| --------------- | ------------- | ---------------------- | ------------------------------------------ |
+| **default**     | `primary`     | `primary-foreground`   | Main CTAs: Send message, Start search      |
+| **secondary**   | `secondary`   | `secondary-foreground` | Secondary actions: View listing, Copy link |
+| **outline**     | `background`  | token text + border    | Tertiary: filter toggles, sort options     |
+| **ghost**       | transparent   | `accent-foreground`    | Subtle: Close, Dismiss, icon-only buttons  |
+| **destructive** | `destructive` | `destructive-fg`       | Dangerous: Clear chat, Cancel search       |
+| **link**        | transparent   | `primary`              | Inline text links: Airbnb listing URL      |
 
 Sizes: `default` (h-9), `xs` (h-7), `sm` (h-8), `lg` (h-10), `icon` (h-9 w-9), `icon-sm` (size-8), `icon-lg` (size-10).
 
@@ -333,13 +333,13 @@ From `app/components/ui/badge/index.ts`:
 
 The chat is the primary interface. Message styling must distinguish user from agent:
 
-| Element              | User Message                         | Agent Message                        |
-| -------------------- | ------------------------------------ | ------------------------------------ |
-| **Alignment**        | Right-aligned                        | Left-aligned                         |
-| **Background**       | `bg-primary text-primary-foreground` | `bg-muted text-foreground`           |
-| **Border radius**    | `rounded-lg`                         | `rounded-lg`                         |
-| **Max width**        | ~70% of chat area                    | ~85% of chat area (more content)     |
-| **Content**          | Plain text                           | Markdown + ListingCards + CostTables |
+| Element           | User Message                         | Agent Message                        |
+| ----------------- | ------------------------------------ | ------------------------------------ |
+| **Alignment**     | Right-aligned                        | Left-aligned                         |
+| **Background**    | `bg-primary text-primary-foreground` | `bg-muted text-foreground`           |
+| **Border radius** | `rounded-lg`                         | `rounded-lg`                         |
+| **Max width**     | ~70% of chat area                    | ~85% of chat area (more content)     |
+| **Content**       | Plain text                           | Markdown + ListingCards + CostTables |
 
 Agent messages can embed structured components (ListingCard, CostTable, WeekSummary) inline within the message bubble.
 
@@ -355,12 +355,12 @@ The chat input is the primary input — fixed to the bottom of the viewport:
 
 In-app toasts via vue-sonner (Sonner component):
 
-| Type        | Icon           | Token Color    | Example                                 |
-| ----------- | -------------- | -------------- | --------------------------------------- |
-| **Success** | `CheckCircle`  | `success`      | "Search completed — 5 listings found"   |
-| **Error**   | `AlertCircle`  | `destructive`  | "Agent connection failed"               |
-| **Info**    | `Info`         | `info`         | "Switching to cached scraping mode"     |
-| **Warning** | `AlertTriangle`| `warning`      | "Rate limited by Airbnb — retrying..."  |
+| Type        | Icon            | Token Color   | Example                                |
+| ----------- | --------------- | ------------- | -------------------------------------- |
+| **Success** | `CheckCircle`   | `success`     | "Search completed — 5 listings found"  |
+| **Error**   | `AlertCircle`   | `destructive` | "Agent connection failed"              |
+| **Info**    | `Info`          | `info`        | "Switching to cached scraping mode"    |
+| **Warning** | `AlertTriangle` | `warning`     | "Rate limited by Airbnb — retrying..." |
 
 ---
 
@@ -368,16 +368,16 @@ In-app toasts via vue-sonner (Sonner component):
 
 Every interactive element must have clearly distinguishable states:
 
-| State        | Visual Treatment                                                    |
-| ------------ | ------------------------------------------------------------------- |
-| **Default**  | Base styling as defined in component section                        |
-| **Hover**    | Subtle background shift or shadow increase; `transition` always     |
-| **Focus**    | `ring-1 ring-ring` — visible cyan focus ring for keyboard nav       |
-| **Active**   | Slightly darker background; `scale-[0.98]` for tactile feedback     |
-| **Disabled** | `opacity-50 pointer-events-none`; no hover/focus effects            |
-| **Loading**  | `Loader2` spinner replacing text; button width remains stable       |
-| **Streaming**| Pulsing dots indicator; tool usage badge updates in real time       |
-| **Selected** | Primary accent — border or background tint from `primary` token     |
+| State         | Visual Treatment                                                |
+| ------------- | --------------------------------------------------------------- |
+| **Default**   | Base styling as defined in component section                    |
+| **Hover**     | Subtle background shift or shadow increase; `transition` always |
+| **Focus**     | `ring-1 ring-ring` — visible cyan focus ring for keyboard nav   |
+| **Active**    | Slightly darker background; `scale-[0.98]` for tactile feedback |
+| **Disabled**  | `opacity-50 pointer-events-none`; no hover/focus effects        |
+| **Loading**   | `Loader2` spinner replacing text; button width remains stable   |
+| **Streaming** | Pulsing dots indicator; tool usage badge updates in real time   |
+| **Selected**  | Primary accent — border or background tint from `primary` token |
 
 ---
 
@@ -387,12 +387,12 @@ Every interactive element must have clearly distinguishable states:
 
 Empty states should be encouraging and actionable:
 
-| Context                  | Message Example                                       | Visual                        |
-| ------------------------ | ----------------------------------------------------- | ----------------------------- |
-| **No conversations**     | "Ready to plan your trip? Try asking about listings." | Subtle icon + example prompts |
-| **No search results**    | "No listings matched your criteria — try adjusting."  | Search icon + retry CTA       |
-| **Agent error**          | "Something went wrong — check your connection."       | AlertCircle icon + retry      |
-| **Streaming interrupted**| "The search was interrupted — try again."             | Warning badge + retry CTA     |
+| Context                   | Message Example                                       | Visual                        |
+| ------------------------- | ----------------------------------------------------- | ----------------------------- |
+| **No conversations**      | "Ready to plan your trip? Try asking about listings." | Subtle icon + example prompts |
+| **No search results**     | "No listings matched your criteria — try adjusting."  | Search icon + retry CTA       |
+| **Agent error**           | "Something went wrong — check your connection."       | AlertCircle icon + retry      |
+| **Streaming interrupted** | "The search was interrupted — try again."             | Warning badge + retry CTA     |
 
 - Center the message vertically in the chat area
 - Include 2-3 example prompts as clickable chips or suggestions
