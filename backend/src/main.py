@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Union
 
 import logfire
 from fastapi import FastAPI
@@ -33,14 +34,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 		None — control is handed to the application during the ``yield``.
 	"""
 	# ── Startup ──
-	logfire_token = (
+	logfire_token: Union[str, None] = (
 		settings.LOGFIRE_TOKEN.get_secret_value() if settings.LOGFIRE_TOKEN else None
 	)
 	if logfire_token:
 		logfire.configure(token=logfire_token)
 		logfire.instrument_fastapi(app)
 		logfire.instrument_httpx()
+	else:
+		logfire.configure(
+			send_to_logfire=False
+		)  # Disable Logfire if no token is provided
 
+	# ── Database Setup ──
 	async with engine.begin() as conn:
 		await conn.run_sync(Base.metadata.create_all)
 
@@ -50,33 +56,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	await engine.dispose()
 
 
-limiter = Limiter(key_func=get_remote_address)
-
-app = FastAPI(
-	title=fastapi_config.TITLE,
-	version=fastapi_config.VERSION,
-	description=fastapi_config.DESCRIPTION,
-	openapi_url=fastapi_config.openapi_url,
-	lifespan=lifespan,
-)
-
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]  # slowapi stubs don't align with FastAPI's handler signature
-
-app.add_middleware(
-	CORSMiddleware,
-	allow_origins=settings.CORS_ORIGINS,
-	allow_credentials=True,
-	allow_methods=["*"],
-	allow_headers=["*"],
-)
-
-
-@app.get("/healthcheck", tags=["Health"])
-async def healthcheck() -> dict[str, str]:
-	"""Return service health status.
+def create_app() -> FastAPI:
+	"""Factory function to create and configure the FastAPI application.
 
 	Returns:
-		A dict with ``status`` key set to ``"ok"``.
+		A configured FastAPI application instance withn CORS, rate limitings, routers, and exception handlers set up.
 	"""
-	return {"status": "ok"}
+
+	# Initialize FastAPI app with metadata and lifespan management
+	app = FastAPI(
+		**fastapi_config.model_dump(),
+		lifespan=lifespan,
+	)
+	limiter = Limiter(key_func=get_remote_address)
+
+	app.state.limiter: Limiter = limiter
+	app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty: ignore[invalid-argument-type]  # slowapi stubs don't align with FastAPI's handler signature
+
+	app.add_middleware(
+		CORSMiddleware,  # ty: ignore[invalid-argument-type]
+		allow_origins=settings.CORS_ORIGINS,
+		allow_credentials=True,
+		allow_methods=["*"],
+		allow_headers=["*"],
+	)
+
+	@app.get("/healthcheck", tags=["Health"])
+	async def healthcheck() -> dict[str, str]:
+		"""Return service health status.
+
+		Returns:
+			A dict with ``status`` key set to ``"ok"``.
+		"""
+		return {
+			"status": "ok",
+			"message": "The application is running and healthy.",
+		}
+
+	return app
+
+
+app: FastAPI = create_app()
