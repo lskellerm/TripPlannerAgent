@@ -12,6 +12,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.core.config import fastapi_config, settings
+from src.core.exception_handlers import register_exception_handlers
+from src.core.utils import generate_custom_unique_id
 from src.database import engine
 from src.models import Base
 
@@ -67,14 +69,19 @@ def create_app() -> FastAPI:
 	app = FastAPI(
 		**fastapi_config.model_dump(),
 		lifespan=lifespan,
+		generate_unique_id_function=generate_custom_unique_id,
 	)
 	limiter = Limiter(key_func=get_remote_address)
 
+	# Store limiter instance in app state for access in routes and dependencies
 	app.state.limiter: Limiter = limiter
 	app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty: ignore[invalid-argument-type]  # slowapi stubs don't align with FastAPI's handler signature
 
+	# ── Exception Handlers ──
+	register_exception_handlers(app)
+
 	app.add_middleware(
-		CORSMiddleware,  # ty: ignore[invalid-argument-type]
+		CORSMiddleware,
 		allow_origins=settings.CORS_ORIGINS,
 		allow_credentials=True,
 		allow_methods=["*"],
