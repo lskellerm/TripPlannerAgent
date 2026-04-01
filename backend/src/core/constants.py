@@ -1,5 +1,18 @@
 """Application-wide constants and enums."""
 
+__all__: list[str] = [
+	"Environment",
+	"HTTP_200_OK",
+	"HTTP_403_FORBIDDEN",
+	"HTTP_404_NOT_FOUND",
+	"HTTP_422_UNPROCESSABLE_ENTITY",
+	"HTTP_429_TOO_MANY_REQUESTS",
+	"HTTP_500_INTERNAL_SERVER_ERROR",
+	"HTTP_502_BAD_GATEWAY",
+	"HTTP_503_SERVICE_UNAVAILABLE",
+	"ScrapingMode",
+]
+
 from enum import StrEnum
 
 
