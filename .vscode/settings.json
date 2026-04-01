@@ -1,10 +1,31 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:venv",
     "git.ignoreLimitWarning": true,
-    "chat.tools.terminal.autoApprove": {
-        "/^git init 2>/dev/null; git remote add origin https://github\\.com/lskellerm/TripPlannerAgent\\.git && git remote -v$/": {
-            "approve": true,
-            "matchCommandLine": true
-        }
-    }
+    // ── Python ──
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        },
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4
+    },
+    "ruff.configuration": "${workspaceFolder}/backend/pyproject.toml",
+    // ── Frontend ──
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    "[vue]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+    },
+    // ── Testing ──
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+        "backend/tests"
+    ]
 }

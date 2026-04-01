@@ -1,0 +1,72 @@
+# TripPlannerAgent — Docker Compose
+# Usage:
+#   Backend only:  docker compose --profile backend up --build
+#   Full stack:    docker compose --profile full up --build
+
+services:
+  # ── Ollama (Local LLM) ──
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["backend", "full"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - backend-net
+
+  # ── FastAPI Backend ──
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    profiles: ["backend", "full"]
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - ./backend/src:/app/src
+    depends_on:
+      - ollama
+    networks:
+      - backend-net
+      - frontend-net
+
+  # ── Nuxt 3 Frontend ──
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    profiles: ["full"]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NUXT_PUBLIC_API_BASE_URL=http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - frontend-net
+
+volumes:
+  ollama_data:
+
+networks:
+  backend-net:
+  frontend-net:

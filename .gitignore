@@ -1,2 +1,52 @@
+# ── Discovery / Data ──
 CDMX_trip_airbnb_cost.md
 /discovery/*
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+wheels/
+*.egg
+.venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# ── Node / Frontend ──
+node_modules/
+.output/
+.nuxt/
+.nitro/
+.cache/
+
+# ── Environment ──
+.env
+.env.*
+!.env.example
+
+# ── Docker ──
+docker-compose.override.yml
+
+# ── IDE ──
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── SQLite (local dev databases) ──
+*.db
+*.sqlite
+*.sqlite3
+
+.codex

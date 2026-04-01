@@ -1,0 +1,58 @@
+[project]
+name = "TripPlannerAgent"
+version = "0.1.0"
+description = "A trip planner agent that helps users plan their trips efficiently."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    # Web framework
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    # Data validation & settings
+    "pydantic[email]>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    # AI agent framework
+    "pydantic-ai",
+    # HTML parsing
+    "beautifulsoup4",
+    "lxml",
+    # Async HTTP client
+    "httpx>=0.28.0",
+    # JWT auth (agent-scoped HS256 tokens)
+    "PyJWT>=2.9.0",
+    # Rate limiting
+    "slowapi>=0.1.9",
+    # Observability
+    "logfire[fastapi,httpx]>=3.0.0",
+    # Browser automation (fallback mode)
+    "playwright>=1.49.0",
+    # Async SQLite (message history)
+    "aiosqlite>=0.20.0",
+    "sqlalchemy>=2.0.48",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.8.0", "pytest>=8.3.0", "pytest-asyncio>=0.25.0", "ty>=0.0.21"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.format]
+indent-style = "tab"
+quote-style = "double"
+
+[tool.ruff.lint]
+
+ignore = [
+    "UP007", # Use X | None — we use Union[X, None] per project convention
+    "W191",  # Indentation contains tabs — we use tabs
+    "E101",  # Indentation contains mixed spaces and tabs
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
