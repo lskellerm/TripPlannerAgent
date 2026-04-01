@@ -101,7 +101,7 @@ This hybrid approach lets `qwen2.5:32b` focus on high-level decision-making (wha
 
 ### Phase 1: Backend Core _(blocks all other phases)_
 
-**Step 1. Project scaffolding & dependencies** _(mirrors JobAutoAgent conventions)_
+~~**Step 1. Project scaffolding & dependencies** _(mirrors JobAutoAgent conventions)_~~
 
 - Initialize monorepo with `backend/` and `frontend/` top-level directories
 - Root: `docker-compose.yml`, `.gitignore`, `.vscode/` (mcp.json, settings.json, extensions.json)
@@ -219,7 +219,7 @@ This hybrid approach lets `qwen2.5:32b` focus on high-level decision-making (wha
           └── lib/                 # Shared utilities
   ```
 
-**Step 2. Core infrastructure** (`src/core/`, `src/main.py`, `src/database.py`)
+~~**Step 2. Core infrastructure** (`src/core/`, `src/main.py`, `src/database.py`)~~
 
 - `src/core/config.py` — `Settings(BaseSettings)` with `pydantic-settings`, env file loading, typed fields:
   - `APP_NAME`, `ENVIRONMENT` (Literal["development", "production", "testing"]), `DEBUG`
