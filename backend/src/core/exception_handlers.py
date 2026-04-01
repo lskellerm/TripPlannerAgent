@@ -8,6 +8,7 @@ are serialized into a uniform JSON envelope.
 __all__: list[str] = ["register_exception_handlers"]
 
 from fastapi import FastAPI, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
@@ -129,11 +130,13 @@ def register_exception_handlers(app: FastAPI) -> None:
 		"""
 		return JSONResponse(
 			status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-			content={
-				"detail": "Validation error",
-				"code": "VALIDATION_ERROR",
-				"errors": exc.errors(),
-			},
+			content=jsonable_encoder(
+				{
+					"detail": "Validation error",
+					"code": "VALIDATION_ERROR",
+					"errors": exc.errors(),
+				}
+			),
 		)
 
 	@app.exception_handler(DatabaseException)
