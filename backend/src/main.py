@@ -39,20 +39,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	logfire_token: Union[str, None] = (
 		settings.LOGFIRE_TOKEN.get_secret_value() if settings.LOGFIRE_TOKEN else None
 	)
-
-	if logfire_token:
-		logfire.configure(token=logfire_token)
-		logfire.instrument_fastapi(app)
-		logfire.instrument_httpx()
-		logfire.instrument_sqlalchemy(engine=engine)
-		logfire.instrument_sqlite3()
-	else:
-		# Dev note: In development, the token is the project token, generated using the Logfire CLI. In production, it should be a scoped token with limited permissions.
-		logfire.configure()
-		logfire.instrument_fastapi(app)
-		logfire.instrument_httpx()
-		logfire.instrument_sqlalchemy(engine=engine)
-		logfire.instrument_sqlite3()
+	logfire.configure(token=logfire_token)
+	logfire.instrument_fastapi(app)
+	logfire.instrument_httpx()
+	logfire.instrument_sqlalchemy(engine=engine)
+	logfire.instrument_sqlite3()
 
 	# ── Database Setup ──
 	async with engine.begin() as conn:
