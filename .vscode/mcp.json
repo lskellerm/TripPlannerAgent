@@ -3,7 +3,10 @@
 		"playwright": {
 			"type": "stdio",
 			"command": "npx",
-			"args": ["@playwright/mcp@latest", "--headless"]
+			"args": [
+				"@playwright/mcp@latest",
+				"--headless"
+			]
 		},
 		"excalidraw": {
 			"type": "http",
@@ -12,6 +15,10 @@
 		"figma": {
 			"type": "http",
 			"url": "https://mcp.figma.com/mcp"
+		},
+		"logfire": {
+			"type": "http",
+			"url": "https://logfire-us.pydantic.dev/mcp"
 		}
 	},
 	"inputs": []
