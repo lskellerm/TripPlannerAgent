@@ -12,7 +12,7 @@ class Environment(StrEnum):
 
 
 class ScrapingMode(StrEnum):
-	"""Airbnb scraping mode — live browser or cached HTML referenced scrapingfallback."""
+	"""Airbnb scraping mode — live browser or cached HTML referenced scraping fallback."""
 
 	LIVE = "live"
 	CACHED = "cached"
