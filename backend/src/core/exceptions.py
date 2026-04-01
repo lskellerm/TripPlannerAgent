@@ -10,6 +10,7 @@ __all__: list[str] = [
 	"ForbiddenException",
 	"NotFoundException",
 	"RateLimitException",
+	"DatabaseException",
 ]
 
 
