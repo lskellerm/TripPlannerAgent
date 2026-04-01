@@ -1,23 +1,20 @@
-# Nuxt Minimal Starter
+# TripPlannerAgent Frontend
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Nuxt 3 frontend for the TripPlannerAgent — a conversational AI-powered Airbnb search and trip cost analysis platform.
+
+> **Package manager**: this project uses [pnpm](https://pnpm.io) exclusively. Do not use npm, yarn, or bun.
+
+## Prerequisites
+
+- Node.js 20+
+- pnpm (enable via Corepack: `corepack enable && corepack prepare pnpm@latest --activate`)
 
 ## Setup
 
-Make sure to install dependencies:
+Install dependencies:
 
 ```bash
-# npm
-npm install
-
-# pnpm
 pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
 ```
 
 ## Development Server
@@ -25,17 +22,7 @@ bun install
 Start the development server on `http://localhost:3000`:
 
 ```bash
-# npm
-npm run dev
-
-# pnpm
 pnpm dev
-
-# yarn
-yarn dev
-
-# bun
-bun run dev
 ```
 
 ## Production
@@ -43,33 +30,37 @@ bun run dev
 Build the application for production:
 
 ```bash
-# npm
-npm run build
-
-# pnpm
 pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
 ```
 
-Locally preview production build:
+Locally preview the production build:
 
 ```bash
-# npm
-npm run preview
-
-# pnpm
 pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## Code Quality
+
+```bash
+# Lint
+pnpm lint
+
+# Lint and auto-fix
+pnpm lint:fix
+
+# Format with Prettier
+pnpm format
+
+# Type-check
+pnpm typecheck
+```
+
+## API Client Generation
+
+After any backend endpoint or schema change, regenerate the typed API client from the FastAPI OpenAPI spec:
+
+```bash
+pnpm api:generate
+```
+
+Check out the [Nuxt deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
