@@ -16,7 +16,7 @@ Build a Pydantic AI agent backed by `qwen2.5:32b` on Ollama (RTX 5080 FE) that a
 - **Python**: >=3.13, managed by `uv` (matches JobAutoAgent convention)
 - **Node**: pnpm package manager, Node 22 (matches JobAutoAgent frontend)
 - **Formatting**: Ruff (tabs, double quotes, line-length 88) for Python; Prettier + ESLint for TypeScript
-- **Observability**: Logfire instrumentation (FastAPI, httpx, asyncpg if applicable)
+- **Observability**: Logfire instrumentation (FastAPI, httpx, asyncpg if applicable) #TODO: Use OTEL from logfire for Grafana dashboard in future iteration
 
 ---
 
@@ -648,7 +648,7 @@ All OAuth lives **entirely in the Nuxt server layer (Nitro)** — the FastAPI ba
 | Frontend API client      | `@hey-api/openapi-ts` auto-generated SDK from FastAPI OpenAPI schema                                                  |
 | Frontend state           | Pinia stores                                                                                                          |
 | Frontend UI              | shadcn-vue (prefix `ui`), Tailwind v4, lucide-vue-next icons                                                          |
-| Frontend PWA             | `@vite-pwa/nuxt` — service worker, web manifest, installable app shell                                               |
+| Frontend PWA             | `@vite-pwa/nuxt` — service worker, web manifest, installable app shell                                                |
 | Observability            | Logfire (FastAPI, httpx, asyncpg instruments)                                                                         |
 | Docker                   | Multi-stage builds, profile-based compose, non-root users, healthchecks                                               |
 | Anti-detection           | Xvfb headed mode, Playwright browser install in Docker                                                                |
