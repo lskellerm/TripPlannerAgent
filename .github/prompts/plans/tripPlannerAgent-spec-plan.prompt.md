@@ -249,7 +249,7 @@ This hybrid approach lets `qwen2.5:32b` focus on high-level decision-making (wha
 - `src/auth/agent_jwt.py` — `issue_agent_token()` creates a short-lived HS256 JWT signed with `settings.AGENT_SECRET_KEY`, scoped to the current agent session. `verify_agent_token(authorization: str = Header(...))` decodes and validates. Used to gate agent-only internal endpoints.
 - `src/auth/dependencies.py` — re-exports `require_api_key = Depends(verify_api_key)` and `require_agent_token = Depends(verify_agent_token)` for router-level injection
 
-**Step 3. Pydantic data models** (`src/agent/schemas.py`, `src/airbnb/schemas.py`)
+~~**Step 3. Pydantic data models** (`src/agent/schemas.py`, `src/airbnb/schemas.py`)~~
 
 - `TripWeek` — week_label, check_in, check_out, location, neighborhood_constraints, participants (list[str]), num_people, min_bedrooms, min_bathrooms, min_rating, required_amenities, max_price_per_person
 - `AirbnbListing` — url, title, total_cost, nightly_rate, num_beds, num_bedrooms, num_bathrooms, amenities (list[str]), neighborhood, rating, num_reviews, image_url (optional)
