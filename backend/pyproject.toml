@@ -29,6 +29,7 @@ dependencies = [
     # Async SQLite (message history)
     "aiosqlite>=0.20.0",
     "sqlalchemy>=2.0.48",
+    "orjson>=3.11.8",
 ]
 
 [dependency-groups]
