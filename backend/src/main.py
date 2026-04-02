@@ -11,6 +11,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from src.agent.agent import agent as trip_agent
 from src.core.config import fastapi_config, settings
 from src.core.exception_handlers import register_exception_handlers
 from src.core.utils import generate_custom_unique_id
@@ -25,8 +26,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	On startup:
 	- Configures Logfire observability (when ``LOGFIRE_TOKEN`` is set).
 	- Creates all database tables if they do not yet exist.
+	- Starts the Playwright MCP server subprocess via the agent context.
 
 	On shutdown:
+	- Stops the Playwright MCP server subprocess.
 	- Disposes the async database engine to release connections.
 
 	Args:
@@ -49,7 +52,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	async with engine.begin() as conn:
 		await conn.run_sync(Base.metadata.create_all)
 
-	yield
+	# ── Playwright MCP Server Lifecycle ──
+	async with trip_agent:
+		yield
 
 	# ── Shutdown ──
 	await engine.dispose()
