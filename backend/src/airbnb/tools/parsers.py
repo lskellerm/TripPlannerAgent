@@ -98,8 +98,8 @@ def _extract_bootstrap_data(soup: BeautifulSoup) -> Union[dict, None]:
 def _find_listing_links(soup: BeautifulSoup) -> list[Tag]:
 	"""Find all anchor tags linking to Airbnb listing pages.
 
-	   For example, trys to find links like ``/rooms/12345678`` or full URLs like
-	   ``https://www.airbnb.com/rooms/12345678`` in the search results` page (per location and dates searched).
+	   For example, tries to find links like ``/rooms/12345678`` or full URLs like
+	   ``https://www.airbnb.com/rooms/12345678`` in the ``search results`` page (per location and dates searched).
 
 	Args:
 		soup: Parsed BeautifulSoup document.
