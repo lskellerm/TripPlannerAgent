@@ -2,7 +2,7 @@
 
 Uses BeautifulSoup with the ``lxml`` parser to extract structured listing
 data from Airbnb pages.  Designed to work with both Playwright-rendered
-live HTML (Playwright MCP via Agent Navigation)and cached HTML files in ``discovery/html/``.
+live HTML (Playwright MCP via Agent Navigation) and cached HTML files in ``discovery/html/``.
 
 Airbnb pages are heavily client-side rendered.  These parsers target
 the embedded JSON data within ``<script>`` tags (structured data and
@@ -33,6 +33,15 @@ BATHS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bath(?:room)?s?", re.IGNORECA
 NIGHTLY_RATE_PATTERN: Pattern[str] = re.compile(
 	r"\$(\d[\d,]*)\s*(?:per\s*)?night", re.IGNORECASE
 )
+# data-testid values that identify the card subtitle/location element on search results
+NEIGHBORHOOD_TESTID_PATTERN: Pattern[str] = re.compile(
+	r"^(subtitle|listing-card-title)$", re.IGNORECASE
+)
+# Plausible length bounds for a neighbourhood name extracted from card text
+MIN_NEIGHBORHOOD_LENGTH: int = 3
+MAX_NEIGHBORHOOD_LENGTH: int = 60
+# Maximum length of a card child's text to consider for neighbourhood extraction
+MAX_CARD_TEXT_LENGTH: int = 100
 
 
 def _parse_price(text: str) -> Union[float, None]:
@@ -98,8 +107,8 @@ def _extract_bootstrap_data(soup: BeautifulSoup) -> Union[dict, None]:
 def _find_listing_links(soup: BeautifulSoup) -> list[Tag]:
 	"""Find all anchor tags linking to Airbnb listing pages.
 
-	   For example, trys to find links like ``/rooms/12345678`` or full URLs like
-	   ``https://www.airbnb.com/rooms/12345678`` in the search results` page (per location and dates searched).
+	   For example, tries to find links like ``/rooms/12345678`` or full URLs like
+	   ``https://www.airbnb.com/rooms/12345678`` in the ``search results`` page (per location and dates searched).
 
 	Args:
 		soup: Parsed BeautifulSoup document.
@@ -220,6 +229,39 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 		)
 		if review_match:
 			num_reviews = int(review_match.group(1))
+
+		# Extract neighborhood from the listing card.
+		# Airbnb cards often show "Neighbourhood · Property type · beds · baths"
+		# in a subtitle element or similar inline text.
+		if container:
+			# Strategy 1: look for an element with a data-testid hinting at subtitle/location
+			subtitle_el: Union[Tag, None] = container.find(
+				["div", "span"],
+				attrs={"data-testid": NEIGHBORHOOD_TESTID_PATTERN},
+			)
+			if subtitle_el:
+				subtitle_text: str = subtitle_el.get_text(strip=True)
+				if "·" in subtitle_text and "$" not in subtitle_text:
+					nb_candidate: str = subtitle_text.split("·", 1)[0].strip()
+					if MIN_NEIGHBORHOOD_LENGTH <= len(nb_candidate) <= MAX_NEIGHBORHOOD_LENGTH:
+						neighborhood = nb_candidate
+
+			# Strategy 2: scan card children for middle-dot separator text
+			if neighborhood is None:
+				for child in container.find_all(["div", "span", "p"]):
+					child_text: str = child.get_text(strip=True)
+					if (
+						"·" in child_text
+						and "$" not in child_text
+						and len(child_text) < MAX_CARD_TEXT_LENGTH
+					):
+						nb_candidate = child_text.split("·", 1)[0].strip()
+						if (
+							MIN_NEIGHBORHOOD_LENGTH <= len(nb_candidate) <= MAX_NEIGHBORHOOD_LENGTH
+							and not nb_candidate[0].isdigit()
+						):
+							neighborhood = nb_candidate
+							break
 
 		# Extract image URL
 		image_url: Union[str, None] = None
@@ -396,9 +438,10 @@ def parse_booking_price(page_html: str) -> CostBreakdown:
 			that includes the price breakdown section.
 
 	Returns:
-		A ``CostBreakdown`` with extracted cost data.  ``num_people``
-		defaults to ``1`` and ``num_nights`` defaults to ``1`` — the
-		caller should update these from the trip context.
+		A ``CostBreakdown`` with extracted cost data. ``num_nights`` is
+		parsed from the page when available and otherwise defaults to ``1``.
+		``num_people`` is not derived by this parser and therefore defaults
+		to ``1`` in the returned model.
 
 	Raises:
 		ValueError: If no total price can be extracted from the page.
@@ -458,13 +501,16 @@ def parse_booking_price(page_html: str) -> CostBreakdown:
 		raise ValueError("Could not extract total price from the booking page HTML")
 
 	# Default to 1 person / computed nights — caller updates via context
+	num_people: int = 1
 	return CostBreakdown(
 		total_cost=total_cost,
-		num_people=1,
+		num_people=num_people,
 		num_nights=num_nights,
-		cost_per_person=round(total_cost, 2),
+		cost_per_person=round(total_cost / max(num_people, 1), 2),
 		cost_per_night=round(total_cost / max(num_nights, 1), 2),
-		cost_per_night_per_person=round(total_cost / max(num_nights, 1), 2),
+		cost_per_night_per_person=round(
+			total_cost / max(num_nights, 1) / max(num_people, 1), 2
+		),
 		fees=fees,
 	)
 

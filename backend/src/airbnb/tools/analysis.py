@@ -41,17 +41,21 @@ def filter_listings(
 		listing: AirbnbListing = lwc.listing
 		cost: CostBreakdown = lwc.cost_breakdown
 
-		# Check minimum bedrooms
-		if listing.num_bedrooms is not None:
-			if listing.num_bedrooms < constraints.min_bedrooms:
-				continue
+		# Check minimum bedrooms. Missing data cannot satisfy a required constraint.
+		if listing.num_bedrooms is None:
+			continue
+		if listing.num_bedrooms < constraints.min_bedrooms:
+			continue
 
-		# Check minimum bathrooms
-		if listing.num_bathrooms is not None:
-			if listing.num_bathrooms < constraints.min_bathrooms:
-				continue
+		# Check minimum bathrooms. Missing data cannot satisfy a required constraint.
+		if listing.num_bathrooms is None:
+			continue
+		if listing.num_bathrooms < constraints.min_bathrooms:
+			continue
 
 		# Check minimum rating
+		if constraints.min_rating > 0 and listing.rating is None:
+			continue
 		if listing.rating is not None:
 			if listing.rating < constraints.min_rating:
 				continue
@@ -67,15 +71,15 @@ def filter_listings(
 
 		# Check neighbourhood constraints (case-insensitive)
 		if constraints.neighborhood_constraints:
-			if listing.neighborhood is not None:
-				neighborhood_lower: str = listing.neighborhood.lower()
-				if not any(
-					n.lower() in neighborhood_lower
-					for n in constraints.neighborhood_constraints
-				):
-					continue
-			# If neighbourhood is None, we can't verify — skip check
+			if listing.neighborhood is None:
+				continue
 
+			neighborhood_lower: str = listing.neighborhood.lower()
+			if not any(
+				n.lower() in neighborhood_lower
+				for n in constraints.neighborhood_constraints
+			):
+				continue
 		# Check max price per person
 		if constraints.max_price_per_person is not None:
 			if cost.cost_per_person > constraints.max_price_per_person:
@@ -205,17 +209,19 @@ def rank_by_category(
 	)
 
 	# Best value: lowest cost_per_person / rating ratio
-	# Only consider listings with a rating. This favors higher-rated listings and avoids division by zero.
+	# Only consider listings with a positive rating. This favors higher-rated listings and avoids division by zero.
 	# In this comparison logic, the smaller the ratio, the better the value (lower cost per person for higher rating; cost_per_person: rating).
 	rated: list[ListingWithCost] = [
-		lwc for lwc in listings if lwc.listing.rating is not None
+		lwc
+		for lwc in listings
+		if lwc.listing.rating is not None and lwc.listing.rating > 0
 	]
 	best_value: Union[ListingWithCost, None] = None
 	if rated:
 		best_value: Union[ListingWithCost, None] = min(
 			rated,
 			key=lambda lwc: (
-				lwc.cost_breakdown.cost_per_person / (lwc.listing.rating or 1.0)
+				lwc.cost_breakdown.cost_per_person / lwc.listing.rating
 			),
 		)
 
