@@ -9,10 +9,9 @@ lists.
 
 from typing import Union
 
-from backend.src.airbnb.schemas import AirbnbListing
-
 from src.agent.schemas import TripWeek
 from src.airbnb.schemas import (
+	AirbnbListing,
 	CostBreakdown,
 	ListingWithCost,
 	WeekAnalysis,
