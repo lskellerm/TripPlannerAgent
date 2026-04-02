@@ -41,15 +41,17 @@ def filter_listings(
 		listing: AirbnbListing = lwc.listing
 		cost: CostBreakdown = lwc.cost_breakdown
 
-		# Check minimum bedrooms
-		if listing.num_bedrooms is not None:
-			if listing.num_bedrooms < constraints.min_bedrooms:
-				continue
+		# Check minimum bedrooms. Missing data cannot satisfy a required constraint.
+		if listing.num_bedrooms is None:
+			continue
+		if listing.num_bedrooms < constraints.min_bedrooms:
+			continue
 
-		# Check minimum bathrooms
-		if listing.num_bathrooms is not None:
-			if listing.num_bathrooms < constraints.min_bathrooms:
-				continue
+		# Check minimum bathrooms. Missing data cannot satisfy a required constraint.
+		if listing.num_bathrooms is None:
+			continue
+		if listing.num_bathrooms < constraints.min_bathrooms:
+			continue
 
 		# Check minimum rating
 		if listing.rating is not None:
