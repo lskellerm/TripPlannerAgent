@@ -2295,6 +2295,11 @@ vertexai = [
     { name = "google-auth" },
     { name = "requests" },
 ]
+web = [
+    { name = "httpx" },
+    { name = "starlette" },
+    { name = "uvicorn" },
+]
 xai = [
     { name = "xai-sdk" },
 ]
@@ -3138,6 +3143,7 @@ dependencies = [
     { name = "playwright" },
     { name = "pydantic", extra = ["email"] },
     { name = "pydantic-ai" },
+    { name = "pydantic-ai-slim", extra = ["web"] },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
     { name = "slowapi" },
@@ -3165,6 +3171,7 @@ requires-dist = [
     { name = "playwright", specifier = ">=1.49.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.10.0" },
     { name = "pydantic-ai" },
+    { name = "pydantic-ai-slim", extras = ["web"], specifier = ">=1.75.0" },
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pyjwt", specifier = ">=2.9.0" },
     { name = "slowapi", specifier = ">=0.1.9" },

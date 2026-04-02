@@ -30,6 +30,7 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "sqlalchemy>=2.0.48",
     "orjson>=3.11.8",
+    "pydantic-ai-slim[web]>=1.75.0",
 ]
 
 [dependency-groups]
