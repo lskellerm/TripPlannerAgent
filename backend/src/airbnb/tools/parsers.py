@@ -396,9 +396,10 @@ def parse_booking_price(page_html: str) -> CostBreakdown:
 			that includes the price breakdown section.
 
 	Returns:
-		A ``CostBreakdown`` with extracted cost data.  ``num_people``
-		defaults to ``1`` and ``num_nights`` defaults to ``1`` — the
-		caller should update these from the trip context.
+		A ``CostBreakdown`` with extracted cost data. ``num_nights`` is
+		parsed from the page when available and otherwise defaults to ``1``.
+		``num_people`` is not derived by this parser and therefore defaults
+		to ``1`` in the returned model.
 
 	Raises:
 		ValueError: If no total price can be extracted from the page.
