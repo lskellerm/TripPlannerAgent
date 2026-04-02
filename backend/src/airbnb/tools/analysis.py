@@ -71,15 +71,15 @@ def filter_listings(
 
 		# Check neighbourhood constraints (case-insensitive)
 		if constraints.neighborhood_constraints:
-			if listing.neighborhood is not None:
-				neighborhood_lower: str = listing.neighborhood.lower()
-				if not any(
-					n.lower() in neighborhood_lower
-					for n in constraints.neighborhood_constraints
-				):
-					continue
-			# If neighbourhood is None, we can't verify — skip check
+			if listing.neighborhood is None:
+				continue
 
+			neighborhood_lower: str = listing.neighborhood.lower()
+			if not any(
+				n.lower() in neighborhood_lower
+				for n in constraints.neighborhood_constraints
+			):
+				continue
 		# Check max price per person
 		if constraints.max_price_per_person is not None:
 			if cost.cost_per_person > constraints.max_price_per_person:
