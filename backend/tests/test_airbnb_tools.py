@@ -345,6 +345,62 @@ class TestParseSearchResults:
 		assert len(listings) == 1
 		assert listings[0].nightly_rate == 220.0
 
+	def test_extracts_neighborhood_from_subtitle(self) -> None:
+		"""Parser extracts neighborhood from a data-testid subtitle element."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/22222">
+				<div>
+					<h2>Cozy Apartment</h2>
+					<span data-testid="listing-card-title">Roma Norte · Entire rental unit</span>
+					<span>$150 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(html)
+		assert len(listings) == 1
+		assert listings[0].neighborhood == "Roma Norte"
+
+	def test_extracts_neighborhood_from_separator_text(self) -> None:
+		"""Parser extracts neighborhood from middle-dot separator text in card."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/33333">
+				<div>
+					<h2>Modern Studio</h2>
+					<span>Condesa · Private room · 1 bed</span>
+					<span>$90 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(html)
+		assert len(listings) == 1
+		assert listings[0].neighborhood == "Condesa"
+
+	def test_neighborhood_none_when_not_present(self) -> None:
+		"""Neighborhood is None when no separator-based location text is found."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/44444">
+				<div>
+					<h2>Plain Listing</h2>
+					<span>$100 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(html)
+		assert len(listings) == 1
+		assert listings[0].neighborhood is None
+
 
 class TestParseListingDetails:
 	"""Verify listing detail page parsing."""

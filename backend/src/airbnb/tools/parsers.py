@@ -221,6 +221,39 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 		if review_match:
 			num_reviews = int(review_match.group(1))
 
+		# Extract neighborhood from the listing card.
+		# Airbnb cards often show "Neighbourhood · Property type · beds · baths"
+		# in a subtitle element or similar inline text.
+		if container:
+			# Strategy 1: look for an element with a data-testid hinting at subtitle/location
+			subtitle_el: Union[Tag, None] = container.find(
+				["div", "span"],
+				attrs={"data-testid": re.compile(r"subtitle|listing-card-title")},
+			)
+			if subtitle_el:
+				subtitle_text: str = subtitle_el.get_text(strip=True)
+				if "·" in subtitle_text and "$" not in subtitle_text:
+					nb_candidate: str = subtitle_text.split("·", 1)[0].strip()
+					if 3 <= len(nb_candidate) <= 60:
+						neighborhood = nb_candidate
+
+			# Strategy 2: scan card children for middle-dot separator text
+			if neighborhood is None:
+				for child in container.find_all(["div", "span", "p"]):
+					child_text: str = child.get_text(strip=True)
+					if (
+						"·" in child_text
+						and "$" not in child_text
+						and len(child_text) < 100
+					):
+						nb_candidate = child_text.split("·", 1)[0].strip()
+						if (
+							3 <= len(nb_candidate) <= 60
+							and not nb_candidate[0].isdigit()
+						):
+							neighborhood = nb_candidate
+							break
+
 		# Extract image URL
 		image_url: Union[str, None] = None
 		if container:
