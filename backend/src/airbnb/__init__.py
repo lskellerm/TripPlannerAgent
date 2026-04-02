@@ -1,3 +1,17 @@
 """Airbnb module — domain-specific schemas and tools for Airbnb scraping."""
 
-__all__: list[str] = []
+from src.airbnb.schemas import (
+	AirbnbListing,
+	CostBreakdown,
+	ListingWithCost,
+	TripAnalysis,
+	WeekAnalysis,
+)
+
+__all__: list[str] = [
+	"AirbnbListing",
+	"CostBreakdown",
+	"ListingWithCost",
+	"TripAnalysis",
+	"WeekAnalysis",
+]
