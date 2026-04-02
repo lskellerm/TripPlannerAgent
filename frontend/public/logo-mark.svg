@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 64 80" fill="none" role="img"
+    aria-label="TripPlannerAgent">
+    <title>TripPlannerAgent</title>
+    <!-- Location pin body — primary cyan (#0891b2 ≈ oklch(0.609 0.126 221.723)) -->
+    <path d="M32 78C32 78 60 50 60 28C60 12.536 47.464 0 32 0C16.536 0 4 12.536 4 28C4 50 32 78 32 78Z"
+        fill="#0891b2" />
+    <!-- House silhouette — white negative space (roof + walls) -->
+    <path d="M32 11L17 25V38H47V25L32 11Z" fill="white" />
+    <!-- Door cutout — reveals pin color for depth -->
+    <rect x="28" y="30" width="8" height="8" rx="1.5" fill="#0891b2" />
+</svg>
