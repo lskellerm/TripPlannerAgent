@@ -33,6 +33,15 @@ BATHS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bath(?:room)?s?", re.IGNORECA
 NIGHTLY_RATE_PATTERN: Pattern[str] = re.compile(
 	r"\$(\d[\d,]*)\s*(?:per\s*)?night", re.IGNORECASE
 )
+# data-testid values that identify the card subtitle/location element on search results
+NEIGHBORHOOD_TESTID_PATTERN: Pattern[str] = re.compile(
+	r"^(subtitle|listing-card-title)$", re.IGNORECASE
+)
+# Plausible length bounds for a neighbourhood name extracted from card text
+MIN_NEIGHBORHOOD_LENGTH: int = 3
+MAX_NEIGHBORHOOD_LENGTH: int = 60
+# Maximum length of a card child's text to consider for neighbourhood extraction
+MAX_CARD_TEXT_LENGTH: int = 100
 
 
 def _parse_price(text: str) -> Union[float, None]:
@@ -228,13 +237,13 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 			# Strategy 1: look for an element with a data-testid hinting at subtitle/location
 			subtitle_el: Union[Tag, None] = container.find(
 				["div", "span"],
-				attrs={"data-testid": re.compile(r"subtitle|listing-card-title")},
+				attrs={"data-testid": NEIGHBORHOOD_TESTID_PATTERN},
 			)
 			if subtitle_el:
 				subtitle_text: str = subtitle_el.get_text(strip=True)
 				if "·" in subtitle_text and "$" not in subtitle_text:
 					nb_candidate: str = subtitle_text.split("·", 1)[0].strip()
-					if 3 <= len(nb_candidate) <= 60:
+					if MIN_NEIGHBORHOOD_LENGTH <= len(nb_candidate) <= MAX_NEIGHBORHOOD_LENGTH:
 						neighborhood = nb_candidate
 
 			# Strategy 2: scan card children for middle-dot separator text
@@ -244,11 +253,11 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 					if (
 						"·" in child_text
 						and "$" not in child_text
-						and len(child_text) < 100
+						and len(child_text) < MAX_CARD_TEXT_LENGTH
 					):
 						nb_candidate = child_text.split("·", 1)[0].strip()
 						if (
-							3 <= len(nb_candidate) <= 60
+							MIN_NEIGHBORHOOD_LENGTH <= len(nb_candidate) <= MAX_NEIGHBORHOOD_LENGTH
 							and not nb_candidate[0].isdigit()
 						):
 							neighborhood = nb_candidate
