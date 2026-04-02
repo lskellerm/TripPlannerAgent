@@ -2,7 +2,7 @@
 
 Uses BeautifulSoup with the ``lxml`` parser to extract structured listing
 data from Airbnb pages.  Designed to work with both Playwright-rendered
-live HTML (Playwright MCP via Agent Navigation)and cached HTML files in ``discovery/html/``.
+live HTML (Playwright MCP via Agent Navigation) and cached HTML files in ``discovery/html/``.
 
 Airbnb pages are heavily client-side rendered.  These parsers target
 the embedded JSON data within ``<script>`` tags (structured data and
