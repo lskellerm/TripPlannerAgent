@@ -209,17 +209,19 @@ def rank_by_category(
 	)
 
 	# Best value: lowest cost_per_person / rating ratio
-	# Only consider listings with a rating. This favors higher-rated listings and avoids division by zero.
+	# Only consider listings with a positive rating. This favors higher-rated listings and avoids division by zero.
 	# In this comparison logic, the smaller the ratio, the better the value (lower cost per person for higher rating; cost_per_person: rating).
 	rated: list[ListingWithCost] = [
-		lwc for lwc in listings if lwc.listing.rating is not None
+		lwc
+		for lwc in listings
+		if lwc.listing.rating is not None and lwc.listing.rating > 0
 	]
 	best_value: Union[ListingWithCost, None] = None
 	if rated:
 		best_value: Union[ListingWithCost, None] = min(
 			rated,
 			key=lambda lwc: (
-				lwc.cost_breakdown.cost_per_person / (lwc.listing.rating or 1.0)
+				lwc.cost_breakdown.cost_per_person / lwc.listing.rating
 			),
 		)
 
