@@ -459,13 +459,16 @@ def parse_booking_price(page_html: str) -> CostBreakdown:
 		raise ValueError("Could not extract total price from the booking page HTML")
 
 	# Default to 1 person / computed nights — caller updates via context
+	num_people: int = 1
 	return CostBreakdown(
 		total_cost=total_cost,
-		num_people=1,
+		num_people=num_people,
 		num_nights=num_nights,
-		cost_per_person=round(total_cost, 2),
+		cost_per_person=round(total_cost / max(num_people, 1), 2),
 		cost_per_night=round(total_cost / max(num_nights, 1), 2),
-		cost_per_night_per_person=round(total_cost / max(num_nights, 1), 2),
+		cost_per_night_per_person=round(
+			total_cost / max(num_nights, 1) / max(num_people, 1), 2
+		),
 		fees=fees,
 	)
 
