@@ -54,6 +54,8 @@ def filter_listings(
 			continue
 
 		# Check minimum rating
+		if constraints.min_rating > 0 and listing.rating is None:
+			continue
 		if listing.rating is not None:
 			if listing.rating < constraints.min_rating:
 				continue
