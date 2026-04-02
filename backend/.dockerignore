@@ -16,3 +16,7 @@ discovery/
 .ruff_cache/
 .pytest_cache/
 .mypy_cache/
+docs/
+.env.example
+.logfire/
+Dockerfile
