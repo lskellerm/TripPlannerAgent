@@ -118,6 +118,7 @@ COPY --from=builder /app/src /app/src
 COPY --from=builder /app/pyproject.toml /app/uv.lock ./
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN uv run playwright install chromium
+RUN uv run logfire auth
 
 ENV PATH="/app/.venv/bin:$PATH" \
     DISPLAY=:99
