@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 	- ``API_V1_PREFIX``: URL prefix for version 1 of the API.
 	- ``AIRBNB_SCRAPING_MODE``: Mode for Airbnb scraping (live or cached).
 	- ``PLAYWRIGHT_MCP_VERSION``: Pinned version of ``@playwright/mcp`` used by the agent's MCP subprocess.
+	- ``PLAYWRIGHT_OUTPUT_DIR``: Directory where Playwright MCP saves browser-extracted files (HTML dumps, snapshots). Parsers read HTML from this directory.
 	- ``RATE_LIMIT_PER_MINUTE``: Number of allowed requests per minute for rate limiting.
 	- ``LOGFIRE_TOKEN``: Optional Logfire token for observability integration.
 	- ``DEBUG``: Computed property indicating if the app is in debug mode (true for development and testing environments).
@@ -62,8 +63,9 @@ class Settings(BaseSettings):
 	# ── Airbnb Scraping ──
 	AIRBNB_SCRAPING_MODE: ScrapingMode = ScrapingMode.LIVE
 
-	# ── Playwright MCP ──
+	# ── Playwright MCP Server Configuration ──
 	PLAYWRIGHT_MCP_VERSION: str = "0.0.70"
+	PLAYWRIGHT_OUTPUT_DIR: str = "./.playwright-mcp/html_output"
 
 	# ── Rate Limiting ──
 	RATE_LIMIT_PER_MINUTE: int = 10
