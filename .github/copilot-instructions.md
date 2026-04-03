@@ -29,7 +29,7 @@
 
 ## Project Overview
 
-This is an AI-powered Airbnb search and trip cost analysis platform with a FastAPI backend and Nuxt 3 + PWA frontend. A Pydantic AI agent backed by `qwen2.5:32b` on Ollama (local LLM, RTX 5080 FE GPU) autonomously searches Airbnb via Playwright MCP browser tools, extracts listing metadata, filters against user constraints, computes per-person cost breakdowns (multi-week, variable participant splits), and highlights "best" category listings — all through a conversational chat interface.
+This is an AI-powered Airbnb search and trip cost analysis platform with a FastAPI backend and Nuxt 3 + PWA frontend. A Pydantic AI agent backed by `qwen3.5:35b-a3b` on Ollama (local LLM, RTX 5080 FE GPU) autonomously searches Airbnb via Playwright MCP browser tools, extracts listing metadata, filters against user constraints, computes per-person cost breakdowns (multi-week, variable participant splits), and highlights "best" category listings — all through a conversational chat interface.
 
 **Core features:**
 
@@ -53,7 +53,7 @@ This is an AI-powered Airbnb search and trip cost analysis platform with a FastA
 │  (pnpm, shadcn-vue,  │  API   │                                         │
 │   @hey-api/openapi-ts│        │  ┌───────────────────────────────────┐  │
 │   Pinia, Tailwind v4)│        │  │  Pydantic AI Agent                 │  │
-└──────────────────────┘        │  │  (OllamaProvider: qwen2.5:32b)    │  │
+└──────────────────────┘        │  │  (OllamaProvider: qwen3.5:35b-a3b)    │  │
                                 │  │                                    │  │
          docker-compose         │  │  Toolsets:                         │  │
          ┌──────────┐           │  │  ├─ Playwright MCP (browser)       │  │
@@ -268,7 +268,7 @@ class Settings(BaseSettings):
 		case_sensitive=False, extra="ignore",
 	)
 	OLLAMA_BASE_URL: str = "http://localhost:11434"
-	OLLAMA_MODEL_NAME: str = "qwen2.5:32b"
+	OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
 	API_KEY: SecretStr
 	AGENT_SECRET_KEY: SecretStr
 ```

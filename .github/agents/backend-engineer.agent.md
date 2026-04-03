@@ -84,26 +84,26 @@ Invoke this agent when you need:
 
 ## Technology Stack
 
-| Category            | Technology                                               | Documentation                                   |
-| ------------------- | -------------------------------------------------------- | ----------------------------------------------- |
-| **Runtime**         | Python 3.13+                                             | https://docs.python.org/3.13/                   |
-| **Web framework**   | FastAPI                                                  | https://fastapi.tiangolo.com                    |
-| **ASGI server**     | Uvicorn                                                  | https://www.uvicorn.org                         |
-| **Data validation** | Pydantic v2, pydantic-settings                           | https://docs.pydantic.dev/latest/               |
-| **Database**        | SQLite (aiosqlite) — message history storage             | https://docs.python.org/3/library/sqlite3.html  |
-| **AI agents**       | Pydantic AI (with MCP + OpenAI provider + web UI)        | https://ai.pydantic.dev                         |
-| **LLM provider**    | Ollama (local, `qwen2.5:32b` via OllamaProvider)        | https://ollama.com                              |
-| **Browser**         | Playwright MCP (`@playwright/mcp` via npx)               | https://playwright.dev/python/                  |
-| **HTML parsing**    | BeautifulSoup4 + lxml                                    | https://beautiful-soup-4.readthedocs.io         |
-| **HTTP client**     | httpx (async)                                            | https://www.python-httpx.org                    |
-| **Auth (API key)**  | Custom `verify_api_key` with `secrets.compare_digest()`  | —                                               |
-| **Auth (JWT)**      | PyJWT (HS256 agent-scoped tokens)                        | https://pyjwt.readthedocs.io                    |
-| **Rate limiting**   | slowapi                                                  | https://github.com/laurentS/slowapi             |
-| **Observability**   | Logfire (auto-instruments FastAPI, httpx)                 | https://logfire.pydantic.dev                    |
-| **Linting**         | Ruff                                                     | https://docs.astral.sh/ruff/                    |
-| **Testing**         | pytest + pytest-asyncio                                  | https://docs.pytest.org                         |
-| **Dep management**  | uv                                                       | https://docs.astral.sh/uv/                      |
-| **Containerization**| Docker + Docker Compose                                  | https://docs.docker.com                         |
+| Category             | Technology                                              | Documentation                                  |
+| -------------------- | ------------------------------------------------------- | ---------------------------------------------- |
+| **Runtime**          | Python 3.13+                                            | https://docs.python.org/3.13/                  |
+| **Web framework**    | FastAPI                                                 | https://fastapi.tiangolo.com                   |
+| **ASGI server**      | Uvicorn                                                 | https://www.uvicorn.org                        |
+| **Data validation**  | Pydantic v2, pydantic-settings                          | https://docs.pydantic.dev/latest/              |
+| **Database**         | SQLite (aiosqlite) — message history storage            | https://docs.python.org/3/library/sqlite3.html |
+| **AI agents**        | Pydantic AI (with MCP + OpenAI provider + web UI)       | https://ai.pydantic.dev                        |
+| **LLM provider**     | Ollama (local, `qwen3.5:35b-a3b` via OllamaProvider)    | https://ollama.com                             |
+| **Browser**          | Playwright MCP (`@playwright/mcp` via npx)              | https://playwright.dev/python/                 |
+| **HTML parsing**     | BeautifulSoup4 + lxml                                   | https://beautiful-soup-4.readthedocs.io        |
+| **HTTP client**      | httpx (async)                                           | https://www.python-httpx.org                   |
+| **Auth (API key)**   | Custom `verify_api_key` with `secrets.compare_digest()` | —                                              |
+| **Auth (JWT)**       | PyJWT (HS256 agent-scoped tokens)                       | https://pyjwt.readthedocs.io                   |
+| **Rate limiting**    | slowapi                                                 | https://github.com/laurentS/slowapi            |
+| **Observability**    | Logfire (auto-instruments FastAPI, httpx)               | https://logfire.pydantic.dev                   |
+| **Linting**          | Ruff                                                    | https://docs.astral.sh/ruff/                   |
+| **Testing**          | pytest + pytest-asyncio                                 | https://docs.pytest.org                        |
+| **Dep management**   | uv                                                      | https://docs.astral.sh/uv/                     |
+| **Containerization** | Docker + Docker Compose                                 | https://docs.docker.com                        |
 
 ## Architecture Overview
 
@@ -114,7 +114,7 @@ Invoke this agent when you need:
 │                    FastAPI Application                       │
 │  ┌──────────┐  ┌──────────┐  ┌────────────────────────────┐│
 │  │  Routers │→ │ Services │→ │  Pydantic AI Agent          ││
-│  │ (HTTP)   │  │ (Logic)  │  │  (qwen2.5:32b via Ollama)  ││
+│  │ (HTTP)   │  │ (Logic)  │  │  (qwen3.5:35b-a3b via Ollama)  ││
 │  └──────────┘  └──────────┘  └─────────┬──────────────────┘│
 │       ↕                                ↓                    │
 │  ┌──────────┐       ┌─────────────────────────────────────┐│
@@ -321,7 +321,7 @@ case_sensitive=False, extra="ignore",
 APP_NAME: str = "TripPlannerAgent"
 ENVIRONMENT: Literal["development", "production", "testing"] = "development"
 OLLAMA_BASE_URL: str = "http://localhost:11434"
-OLLAMA_MODEL_NAME: str = "qwen2.5:32b"
+OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
 API_KEY: SecretStr
 AGENT_SECRET_KEY: SecretStr
 AGENT_TOKEN_EXPIRE_MINUTES: int = 30
@@ -497,6 +497,7 @@ Three-tier authentication — **no `fastapi-users`** (this is a POC without user
 - `dependencies.py` — Re-exports `require_api_key = Depends(verify_api_key)` and `require_agent_token = Depends(verify_agent_token)` for router-level injection.
 
 Auth tiers:
+
 1. **Public** — `/healthcheck` only
 2. **API-key-gated** — `/api/v1/agent/*` endpoints (frontend sends `X-API-Key` via server-side proxy)
 3. **Agent-JWT-gated** — `/api/v1/internal/*` (if needed, only callable by the agent itself)
@@ -539,7 +540,7 @@ Airbnb-domain knowledge encoded as deterministic Python tools:
   - `calculate_trip_totals(week_analyses, participant_names)` → per-person totals across weeks with variable participants
   - `rank_by_category(listings: list[ListingWithCost])` → dict of category → best listing pick
 
-This module encodes Airbnb-specific knowledge so `qwen2.5:32b` doesn't need to reason about CSS selectors or DOM structure — it just calls the tools.
+This module encodes Airbnb-specific knowledge so `qwen3.5:35b-a3b` doesn't need to reason about CSS selectors or DOM structure — it just calls the tools.
 
 ### Browser Module
 
@@ -557,11 +558,11 @@ Playwright MCP browser interaction support:
 
 **All I/O must be async.** This is non-negotiable:
 
-| Operation      | Correct               | Wrong           |
-| -------------- | --------------------- | --------------- |
-| HTTP           | `httpx.AsyncClient`   | `requests`      |
-| Browser        | Playwright MCP (async)| sync Playwright |
-| Database       | `aiosqlite`           | sync `sqlite3`  |
+| Operation | Correct                | Wrong           |
+| --------- | ---------------------- | --------------- |
+| HTTP      | `httpx.AsyncClient`    | `requests`      |
+| Browser   | Playwright MCP (async) | sync Playwright |
+| Database  | `aiosqlite`            | sync `sqlite3`  |
 
 Synchronous calls block the event loop and will break Playwright MCP browser automation running in the same process.
 
@@ -586,15 +587,15 @@ Reference: https://logfire.pydantic.dev
 
 The exception hierarchy in `core/exceptions.py` maps to HTTP status codes via `core/exception_handlers.py`:
 
-| Exception                  | HTTP Status | Code                  |
-| -------------------------- | ----------- | --------------------- |
-| `NotFoundException`        | 404         | `NOT_FOUND`           |
-| `ForbiddenException`       | 403         | `FORBIDDEN`           |
-| `ValidationException`      | 422         | `VALIDATION_ERROR`    |
-| `AirbnbError`              | 502         | `AIRBNB_ERROR`        |
-| `AntiBotDetectedError`     | 503         | `ANTI_BOT_DETECTED`   |
-| `ParsingError`             | 422         | `PARSING_ERROR`       |
-| `AppException` (fallback)  | 500         | `APP_ERROR`           |
+| Exception                 | HTTP Status | Code                |
+| ------------------------- | ----------- | ------------------- |
+| `NotFoundException`       | 404         | `NOT_FOUND`         |
+| `ForbiddenException`      | 403         | `FORBIDDEN`         |
+| `ValidationException`     | 422         | `VALIDATION_ERROR`  |
+| `AirbnbError`             | 502         | `AIRBNB_ERROR`      |
+| `AntiBotDetectedError`    | 503         | `ANTI_BOT_DETECTED` |
+| `ParsingError`            | 422         | `PARSING_ERROR`     |
+| `AppException` (fallback) | 500         | `APP_ERROR`         |
 
 Module-specific exceptions should inherit from `AppException` and be registered in the exception handler if they need custom HTTP mappings.
 
@@ -611,21 +612,21 @@ Module-specific exceptions should inherit from `AppException` and be registered 
 
 ## Key Reference Links
 
-| Resource                   | Path / URL                                                             |
-| -------------------------- | ---------------------------------------------------------------------- |
-| **Implementation plan**    | `.github/prompts/plans/tripPlannerAgent-spec-plan.prompt.md`           |
-| **Copilot instructions**   | `.github/copilot-instructions.md`                                      |
-| **Cost reference doc**     | `CDMX_trip_airbnb_cost.md`                                            |
-| **Discovery HTML**         | `discovery/` (saved Airbnb pages for parser testing)                   |
-| **FastAPI best practices** | https://github.com/zhanymkanov/fastapi-best-practices                  |
-| **FastAPI docs**           | https://fastapi.tiangolo.com                                           |
-| **Pydantic docs**          | https://docs.pydantic.dev/latest/                                      |
-| **Pydantic AI docs**       | https://ai.pydantic.dev                                                |
-| **Playwright MCP docs**    | https://playwright.dev/python/                                         |
-| **BeautifulSoup docs**     | https://beautiful-soup-4.readthedocs.io                                |
-| **Logfire docs**           | https://logfire.pydantic.dev                                           |
-| **Ruff docs**              | https://docs.astral.sh/ruff/                                           |
-| **uv docs**                | https://docs.astral.sh/uv/                                            |
+| Resource                   | Path / URL                                                   |
+| -------------------------- | ------------------------------------------------------------ |
+| **Implementation plan**    | `.github/prompts/plans/tripPlannerAgent-spec-plan.prompt.md` |
+| **Copilot instructions**   | `.github/copilot-instructions.md`                            |
+| **Cost reference doc**     | `CDMX_trip_airbnb_cost.md`                                   |
+| **Discovery HTML**         | `discovery/` (saved Airbnb pages for parser testing)         |
+| **FastAPI best practices** | https://github.com/zhanymkanov/fastapi-best-practices        |
+| **FastAPI docs**           | https://fastapi.tiangolo.com                                 |
+| **Pydantic docs**          | https://docs.pydantic.dev/latest/                            |
+| **Pydantic AI docs**       | https://ai.pydantic.dev                                      |
+| **Playwright MCP docs**    | https://playwright.dev/python/                               |
+| **BeautifulSoup docs**     | https://beautiful-soup-4.readthedocs.io                      |
+| **Logfire docs**           | https://logfire.pydantic.dev                                 |
+| **Ruff docs**              | https://docs.astral.sh/ruff/                                 |
+| **uv docs**                | https://docs.astral.sh/uv/                                   |
 
 ## Common Commands
 

@@ -2,7 +2,7 @@ Airbnb Search & Analysis POC (v3)
 
 ## TL;DR
 
-Build a Pydantic AI agent backed by `qwen2.5:32b` on Ollama (RTX 5080 FE) that autonomously searches Airbnb via Playwright MCP browser tools, extracts listing metadata, filters against user constraints, computes per-person cost breakdowns (multi-week, variable participant splits), and highlights "best" category listings. Backend: Python (FastAPI + Pydantic AI + Playwright MCP). Frontend: Nuxt 3 + PWA. Validated first with Pydantic AI's built-in web UI.
+Build a Pydantic AI agent backed by `qwen3.5:35b-a3b` on Ollama (RTX 5080 FE) that autonomously searches Airbnb via Playwright MCP browser tools, extracts listing metadata, filters against user constraints, computes per-person cost breakdowns (multi-week, variable participant splits), and highlights "best" category listings. Backend: Python (FastAPI + Pydantic AI + Playwright MCP). Frontend: Nuxt 3 + PWA. Validated first with Pydantic AI’s built-in web UI.
 
 > **Reference implementation**: Architecture, conventions, tooling, and Docker patterns mirror `lskellerm/JobApplicationAutomationTool`.
 
@@ -10,7 +10,7 @@ Build a Pydantic AI agent backed by `qwen2.5:32b` on Ollama (RTX 5080 FE) that a
 
 ## Decided Constraints
 
-- **GPU**: RTX 5080 FE (16GB GDDR7) — `qwen2.5:32b` at Q4_K_M quantization (~20GB) will use partial CPU offloading via Ollama. Acceptable for POC perf.
+- **GPU**: RTX 5080 FE (16GB GDDR7) — `qwen3.5:35b-a3b` is a MoE model (~3B active params) that fits entirely in VRAM. No CPU offloading needed.
 - **Browser Automation**: Playwright MCP server (live scraping primary, cached HTML fallback)
 - **Multi-week**: Supported from day one, with per-week participant lists and variable cost splits
 - **Python**: >=3.13, managed by `uv` (matches JobAutoAgent convention)
@@ -28,7 +28,7 @@ Build a Pydantic AI agent backed by `qwen2.5:32b` on Ollama (RTX 5080 FE) that a
 │  (pnpm, shadcn-vue,  │  API   │                                         │
 │   @hey-api/openapi-ts│        │  ┌───────────────────────────────────┐  │
 │   Pinia, Tailwind v4)│        │  │  Pydantic AI Agent                 │  │
-└──────────────────────┘        │  │  (OllamaProvider: qwen2.5:32b)    │  │
+└──────────────────────┘        │  │  (OllamaProvider: qwen3.5:35b-a3b)    │  │
                                 │  │                                    │  │
          docker-compose         │  │  Toolsets:                         │  │
          ┌──────────┐           │  │  ├─ Playwright MCP (browser)       │  │
@@ -93,7 +93,7 @@ The agent gets TWO sets of tools:
 1. **Playwright MCP toolset** — raw browser tools (navigate, click, type, snapshot, screenshot). The agent uses these to interact with Airbnb pages.
 2. **Custom `@agent.tool` functions** — Airbnb-domain tools that handle URL construction, HTML parsing, filtering, cost math, and ranking. These encode the Airbnb-specific knowledge so the model doesn't need to reason about CSS selectors or DOM structure — it just calls `build_search_url(...)` then uses MCP to navigate, then calls `parse_search_results(html)` on the page content.
 
-This hybrid approach lets `qwen2.5:32b` focus on high-level decision-making (what to search, how to filter) while the deterministic Python tools handle the fragile scraping logic.
+This hybrid approach lets `qwen3.5:35b-a3b` focus on high-level decision-making (what to search, how to filter) while the deterministic Python tools handle the fragile scraping logic.
 
 ---
 
@@ -662,7 +662,7 @@ All OAuth lives **entirely in the Nuxt server layer (Nitro)** — the FastAPI ba
 ## Decisions
 
 1. **Hybrid tools (Playwright MCP + custom parsers)**: Playwright MCP provides browser control, custom `@agent.tool` functions handle Airbnb-specific URL building, HTML parsing, cost math, and ranking. This split keeps fragile scraping logic deterministic while letting the model orchestrate the workflow.
-2. **`qwen2.5:32b` on RTX 5080 FE**: Q4_K_M quantization will use partial CPU offloading. Acceptable latency for POC. If too slow, fallback to `qwen2.5:14b`.
+2. **`qwen3.5:35b-a3b` on RTX 5080 FE**: MoE architecture with ~3B active parameters fits entirely in 16GB VRAM. Fast inference without CPU offloading.
 3. **Live scraping first**: Playwright MCP for real-time Airbnb interaction. Cached HTML fallback toggleable via env var.
 4. **Multi-week from start**: Data models and cost calculation support variable participants per week, per-person trip totals across weeks.
 5. **POC validation via `agent.to_web()`** before investing in Nuxt frontend.

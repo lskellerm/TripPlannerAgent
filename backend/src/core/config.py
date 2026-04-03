@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
 	# ── Ollama (LLM Provider) ──
 	OLLAMA_BASE_URL: str = "http://localhost:11434"
-	OLLAMA_MODEL_NAME: str = "qwen2.5:32b"
+	OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
 
 	# ── Authentication ──
 	API_KEY: SecretStr
