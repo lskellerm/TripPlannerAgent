@@ -23,7 +23,7 @@ dependencies = [
     # Rate limiting
     "slowapi>=0.1.9",
     # Observability
-    "logfire[fastapi,httpx,sqlalchemy,sqlite3]>=3.0.0",
+    "logfire[fastapi,httpx,sqlalchemy,sqlite3,starlette]>=3.0.0",
     # Browser automation (fallback mode)
     "playwright>=1.49.0",
     # Async SQLite (message history)

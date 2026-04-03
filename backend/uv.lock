@@ -1414,6 +1414,9 @@ sqlalchemy = [
 sqlite3 = [
     { name = "opentelemetry-instrumentation-sqlite3" },
 ]
+starlette = [
+    { name = "opentelemetry-instrumentation-starlette" },
+]
 
 [[package]]
 name = "logfire-api"
@@ -1885,6 +1888,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/44/33/fafa354b529a7e9b5a5dc4155953bae1ff71622334a420d19f7e1d65e7cc/opentelemetry_instrumentation_sqlite3-0.60b1.tar.gz", hash = "sha256:d716b9d89d31dc426ccedefcdbf96cba1897dfe020d21e5e5ea82a782d03e1d6", size = 7922, upload-time = "2025-12-11T13:37:13.655Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d8/64/be1c8a6d17cf2860f41206828cbabe39b71345cc95626b91c84f48e96066/opentelemetry_instrumentation_sqlite3-0.60b1-py3-none-any.whl", hash = "sha256:7666853b9df186b81e587320aaa03da3f1ce46ba9277b62d8ea20a745886031c", size = 9338, upload-time = "2025-12-11T13:36:25.854Z" },
+]
+
+[[package]]
+name = "opentelemetry-instrumentation-starlette"
+version = "0.60b1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-instrumentation-asgi" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "opentelemetry-util-http" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/39/5e/7e5c97ea0d4dcf735fea4d0e8cd91974bcb7d13436cf3b7c85244cf2ace5/opentelemetry_instrumentation_starlette-0.60b1.tar.gz", hash = "sha256:282a25339acd8885e64f7dbaf3efb0e4b9f0bde04b9987ba846ba73d50978faa", size = 14643, upload-time = "2025-12-11T13:37:14.311Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/1a/246dd7fcf7dd6c399771e966689cc02d53d6db271f3d3161ca2a755d50c8/opentelemetry_instrumentation_starlette-0.60b1-py3-none-any.whl", hash = "sha256:a5bcf8c75da0501b5c6abb1ea53be699be22698229df59c8478be93ae2e486a8", size = 11765, upload-time = "2025-12-11T13:36:26.693Z" },
 ]
 
 [[package]]
@@ -3137,7 +3156,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
-    { name = "logfire", extra = ["fastapi", "httpx", "sqlalchemy", "sqlite3"] },
+    { name = "logfire", extra = ["fastapi", "httpx", "sqlalchemy", "sqlite3", "starlette"] },
     { name = "lxml" },
     { name = "orjson" },
     { name = "playwright" },
@@ -3165,7 +3184,7 @@ requires-dist = [
     { name = "beautifulsoup4" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.0" },
     { name = "httpx", specifier = ">=0.28.0" },
-    { name = "logfire", extras = ["fastapi", "httpx", "sqlalchemy", "sqlite3"], specifier = ">=3.0.0" },
+    { name = "logfire", extras = ["fastapi", "httpx", "sqlalchemy", "sqlite3", "starlette"], specifier = ">=3.0.0" },
     { name = "lxml" },
     { name = "orjson", specifier = ">=3.11.8" },
     { name = "playwright", specifier = ">=1.49.0" },
