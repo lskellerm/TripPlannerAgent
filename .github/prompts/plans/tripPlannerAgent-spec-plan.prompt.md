@@ -16,7 +16,7 @@ Build a Pydantic AI agent backed by `qwen2.5:32b` on Ollama (RTX 5080 FE) that a
 - **Python**: >=3.13, managed by `uv` (matches JobAutoAgent convention)
 - **Node**: pnpm package manager, Node 22 (matches JobAutoAgent frontend)
 - **Formatting**: Ruff (tabs, double quotes, line-length 88) for Python; Prettier + ESLint for TypeScript
-- **Observability**: Logfire instrumentation (FastAPI, httpx, asyncpg if applicable) #TODO: Use OTEL from logfire for Grafana dashboard in future iteration
+- **Observability**: Logfire instrumentation (FastAPI, httpx, asyncpg if applicable)
 
 ---
 
@@ -101,7 +101,7 @@ This hybrid approach lets `qwen2.5:32b` focus on high-level decision-making (wha
 
 ### Phase 1: Backend Core _(blocks all other phases)_
 
-~~**Step 1. Project scaffolding & dependencies** _(mirrors JobAutoAgent conventions)_~~
+**Step 1. Project scaffolding & dependencies** _(mirrors JobAutoAgent conventions)_
 
 - Initialize monorepo with `backend/` and `frontend/` top-level directories
 - Root: `docker-compose.yml`, `.gitignore`, `.vscode/` (mcp.json, settings.json, extensions.json)
@@ -219,7 +219,7 @@ This hybrid approach lets `qwen2.5:32b` focus on high-level decision-making (wha
           └── lib/                 # Shared utilities
   ```
 
-~~**Step 2. Core infrastructure** (`src/core/`, `src/main.py`, `src/database.py`)~~
+**Step 2. Core infrastructure** (`src/core/`, `src/main.py`, `src/database.py`)
 
 - `src/core/config.py` — `Settings(BaseSettings)` with `pydantic-settings`, env file loading, typed fields:
   - `APP_NAME`, `ENVIRONMENT` (Literal["development", "production", "testing"]), `DEBUG`
@@ -249,7 +249,7 @@ This hybrid approach lets `qwen2.5:32b` focus on high-level decision-making (wha
 - `src/auth/agent_jwt.py` — `issue_agent_token()` creates a short-lived HS256 JWT signed with `settings.AGENT_SECRET_KEY`, scoped to the current agent session. `verify_agent_token(authorization: str = Header(...))` decodes and validates. Used to gate agent-only internal endpoints.
 - `src/auth/dependencies.py` — re-exports `require_api_key = Depends(verify_api_key)` and `require_agent_token = Depends(verify_agent_token)` for router-level injection
 
-~~**Step 3. Pydantic data models** (`src/agent/schemas.py`, `src/airbnb/schemas.py`)~~
+**Step 3. Pydantic data models** (`src/agent/schemas.py`, `src/airbnb/schemas.py`)
 
 - `TripWeek` — week_label, check_in, check_out, location, neighborhood_constraints, participants (list[str]), num_people, min_bedrooms, min_bathrooms, min_rating, required_amenities, max_price_per_person
 - `AirbnbListing` — url, title, total_cost, nightly_rate, num_beds, num_bedrooms, num_bathrooms, amenities (list[str]), neighborhood, rating, num_reviews, image_url (optional)
