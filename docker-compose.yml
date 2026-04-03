@@ -36,6 +36,7 @@ services:
       - ./backend/.env
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
+      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN}
     volumes:
       - ./backend/src:/app/src
     depends_on:

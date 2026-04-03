@@ -138,7 +138,7 @@ constraints), briefly note it:
 
 playwright_server: MCPServerStdio = MCPServerStdio(
 	"npx",
-	args=["@playwright/mcp@latest"],
+	args=[f"@playwright/mcp@{settings.PLAYWRIGHT_MCP_VERSION}"],
 	tool_prefix="browser",
 )
 """Playwright MCP server running as a stdio subprocess.

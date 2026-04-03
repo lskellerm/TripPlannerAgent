@@ -27,6 +27,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Stage 2: Development — includes dev deps + Playwright browsers
 # ══════════════════════════════════════════════════════════════
 FROM python:3.13-slim AS development
+ARG PLAYWRIGHT_MCP_VERSION=0.0.70
 
 # Install system deps for Playwright + Xvfb (headed anti-detection)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -66,8 +67,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Install Playwright browsers
 RUN uv run playwright install chromium
 
-# Ensure @playwright/mcp is available
-RUN npm install -g @playwright/mcp@latest
+# Ensure @playwright/mcp is available (pinned version avoids npx re-download at runtime)
+RUN npm install -g @playwright/mcp@${PLAYWRIGHT_MCP_VERSION}
 
 ENV DISPLAY=:99
 
@@ -80,6 +81,7 @@ CMD ["sh", "-c", "Xvfb :99 -screen 0 1920x1080x24 & uv run uvicorn src.main:app 
 # Stage 3: Production — minimal runtime
 # ══════════════════════════════════════════════════════════════
 FROM python:3.13-slim AS production
+ARG PLAYWRIGHT_MCP_VERSION=0.0.70
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
@@ -103,8 +105,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
-# Install @playwright/mcp globally
-RUN npm install -g @playwright/mcp@latest
+# Install @playwright/mcp globally (pinned version avoids npx re-download at runtime)
+RUN npm install -g @playwright/mcp@${PLAYWRIGHT_MCP_VERSION}
 
 WORKDIR /app
 
