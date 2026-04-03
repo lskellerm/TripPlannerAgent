@@ -50,3 +50,5 @@ Thumbs.db
 *.sqlite3
 
 .codex
+
+.playwright-mcp/

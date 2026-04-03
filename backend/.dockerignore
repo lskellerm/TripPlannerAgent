@@ -20,3 +20,5 @@ docs/
 .env.example
 .logfire/
 Dockerfile
+
+.playwright-mcp/
