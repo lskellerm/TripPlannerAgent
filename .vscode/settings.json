@@ -27,5 +27,14 @@
     "python.testing.pytestEnabled": true,
     "python.testing.pytestArgs": [
         "backend/tests"
-    ]
+    ],
+    "chat.mcp.serverSampling": {
+        "TripPlannerAgent/.vscode/mcp.json: logfire": {
+            "allowedModels": [
+                "copilot/auto",
+                "copilotcli/claude-sonnet-4.6",
+                "copilotcli/claude-opus-4.6"
+            ]
+        }
+    }
 }
