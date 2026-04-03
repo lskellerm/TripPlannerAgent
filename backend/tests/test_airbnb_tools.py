@@ -205,7 +205,7 @@ class TestBuildSearchUrl:
 			location="Mexico City",
 			check_in="2026-05-02",
 			check_out="2026-05-09",
-			num_adults=4,
+			number_of_adults=4,
 		)
 		assert url.startswith("https://www.airbnb.com/s/")
 		assert "Mexico%20City" in url
@@ -230,7 +230,7 @@ class TestBuildSearchUrl:
 			location="Juárez, Mexico City",
 			check_in="2026-05-02",
 			check_out="2026-05-09",
-			num_adults=2,
+			number_of_adults=2,
 		)
 		assert "Ju%C3%A1rez%2C%20Mexico%20City" in url
 
@@ -252,7 +252,7 @@ class TestBuildListingUrl:
 			room_id="863180984181188292",
 			check_in="2026-05-02",
 			check_out="2026-05-09",
-			num_adults=4,
+			number_of_adults=4,
 		)
 		assert url.startswith("https://www.airbnb.com/rooms/863180984181188292")
 		assert "adults=4" in url
