@@ -236,10 +236,10 @@ class TestBuildSearchUrl:
 
 	def test_invalid_num_adults_raises(self) -> None:
 		"""Zero or negative adults raises ValueError."""
-		with pytest.raises(ValueError, match="num_adults must be at least 1"):
+		with pytest.raises(ValueError, match="number_of_adults must be at least 1"):
 			build_search_url("CDMX", "2026-05-02", "2026-05-09", 0)
 
-		with pytest.raises(ValueError, match="num_adults must be at least 1"):
+		with pytest.raises(ValueError, match="number_of_adults must be at least 1"):
 			build_search_url("CDMX", "2026-05-02", "2026-05-09", -1)
 
 
