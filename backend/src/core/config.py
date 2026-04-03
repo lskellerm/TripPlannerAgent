@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 	- ``ENVIRONMENT``: The application environment (development, production, testing).
 	- ``OLLAMA_BASE_URL``: Base URL for the Ollama LLM provider.
 	- ``OLLAMA_MODEL_NAME``: The Ollama model to use for LLM interactions.
+	- ``OLLAMA_MAX_TOKENS``: Maximum number of tokens the model can generate per request.
+	- ``OLLAMA_TEMPERATURE``: Sampling temperature for model generation (lower = more deterministic).
+	- ``OLLAMA_TIMEOUT``: Timeout in seconds for model requests.
 	- ``API_KEY``: Secret API key for authenticating requests.
 	- ``AGENT_SECRET_KEY``: Secret key for signing agent tokens.
 	- ``AGENT_TOKEN_EXPIRE_MINUTES``: Expiration time for agent tokens in minutes.
@@ -48,6 +51,9 @@ class Settings(BaseSettings):
 	# ── Ollama (LLM Provider) ──
 	OLLAMA_BASE_URL: str = "http://localhost:11434"
 	OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
+	OLLAMA_MAX_TOKENS: int = 16384
+	OLLAMA_TEMPERATURE: float = 0.2
+	OLLAMA_TIMEOUT: float = 300.0
 
 	# ── Authentication ──
 	API_KEY: SecretStr
