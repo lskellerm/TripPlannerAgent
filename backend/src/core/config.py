@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 	- ``OLLAMA_BASE_URL``: Base URL for the Ollama LLM provider.
 	- ``OLLAMA_MODEL_NAME``: The Ollama model to use for LLM interactions.
 	- ``OLLAMA_MAX_TOKENS``: Maximum number of tokens the model can generate per request.
+	- ``OLLAMA_NUM_CTX``: Context window size (in tokens) for the Ollama model. At startup, a derived Ollama model is created with this value baked in (via ``/api/create``), because Ollama's OpenAI-compatible endpoint does not support ``options.num_ctx``. Default 32768.
 	- ``OLLAMA_TEMPERATURE``: Sampling temperature for model generation (lower = more deterministic).
 	- ``OLLAMA_TIMEOUT``: Timeout in seconds for model requests.
 	- ``API_KEY``: Secret API key for authenticating requests.
@@ -52,6 +53,7 @@ class Settings(BaseSettings):
 	OLLAMA_BASE_URL: str = "http://localhost:11434"
 	OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
 	OLLAMA_MAX_TOKENS: int = 16384
+	OLLAMA_NUM_CTX: int = 32768  # Baked into a derived Ollama model at startup
 	OLLAMA_TEMPERATURE: float = 0.2
 	OLLAMA_TIMEOUT: float = 300.0
 
