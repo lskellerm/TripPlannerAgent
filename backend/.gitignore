@@ -30,3 +30,7 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+
+# Playwright MCP artifacts
+.playwright-mcp/
+search_page.html
