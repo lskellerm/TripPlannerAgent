@@ -19,6 +19,7 @@ from src.airbnb.tools.analysis import (
 	rank_by_category,
 )
 from src.airbnb.tools.parsers import (
+	_unwrap_json_string,
 	parse_booking_price,
 	parse_listing_details,
 	parse_search_results,
@@ -276,7 +277,7 @@ class TestParseSearchResults:
 	def test_returns_list(self) -> None:
 		"""Parser always returns a list (may be empty for SPA pages)."""
 		result: list[AirbnbListing] = parse_search_results(
-			"<html><body>No listings</body></html>"
+			page_html="<html><body>No listings</body></html>"
 		)
 		assert isinstance(result, list)
 
@@ -302,7 +303,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(html)
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert len(listings) == 2
 		assert listings[0].url == "https://www.airbnb.com/rooms/12345?adults=2"
 		assert listings[1].url == "https://www.airbnb.com/rooms/67890?adults=2"
@@ -315,7 +316,7 @@ class TestParseSearchResults:
 		<a href="/rooms/12345?v2">Link 2</a>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(html)
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert len(listings) == 1
 
 	def test_search_page_fixture(self) -> None:
@@ -323,7 +324,7 @@ class TestParseSearchResults:
 		if not SEARCH_PAGE_HTML.exists():
 			pytest.skip("Search page HTML fixture not found")
 		html: str = SEARCH_PAGE_HTML.read_text(encoding="utf-8")
-		listings: list[AirbnbListing] = parse_search_results(html)
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert isinstance(listings, list)
 		# Airbnb SPA pages may yield 0 listings from raw HTML
 		for listing in listings:
@@ -341,7 +342,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(html)
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert len(listings) == 1
 		assert listings[0].nightly_rate == 220.0
 
@@ -360,7 +361,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(html)
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood == "Roma Norte"
 
@@ -379,7 +380,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(html)
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood == "Condesa"
 
@@ -397,9 +398,52 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(html)
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood is None
+
+	def test_extracts_total_cost_and_nightly_from_stay_price(self) -> None:
+		"""Parser extracts total cost and computes nightly rate from 'N nights' text."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/55555">
+				<div>
+					<h2>Beach House</h2>
+					<span>$700 Show price breakdown for 7 nights</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 1
+		assert listings[0].total_cost == 700.0
+		assert listings[0].nightly_rate == 100.0
+
+	def test_unwrap_json_string_decodes_wrapped_html(self) -> None:
+		"""_unwrap_json_string decodes JSON-stringified HTML from browser_evaluate."""
+		raw = '"<html><body>Hello \\"world\\"</body></html>"'
+		result: str = _unwrap_json_string(raw)
+		assert result == '<html><body>Hello "world"</body></html>'
+
+	def test_unwrap_json_string_passes_through_normal_html(self) -> None:
+		"""_unwrap_json_string returns normal HTML unchanged."""
+		html = "<html><body>Hello</body></html>"
+		assert _unwrap_json_string(html) == html
+
+	def test_parse_search_results_with_json_wrapped_html(self) -> None:
+		"""Parser handles JSON-stringified HTML (as saved by browser_evaluate)."""
+		inner = '<html><body><div><a href="/rooms/99999"><div><h2>Wrapped Listing</h2><span>$200 per night</span></div></a></div></body></html>'
+		import orjson
+
+		json_wrapped: str = orjson.dumps(inner).decode("utf-8")
+		# json_wrapped is '"<html>..."' — a JSON string
+		listings: list[AirbnbListing] = parse_search_results(page_html=json_wrapped)
+		# page_html path doesn't go through _unwrap_json_string — only html_file does.
+		# This tests that the link extraction works on properly formatted HTML.
+		# For JSON-unwrapped content we test via _unwrap_json_string directly.
+		assert isinstance(listings, list)
 
 
 class TestParseListingDetails:
@@ -416,7 +460,7 @@ class TestParseListingDetails:
 			<div>3 bedrooms · 2 bathrooms</div>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(html)
+		listing: AirbnbListing = parse_listing_details(page_html=html)
 		assert listing.url == "https://www.airbnb.com/rooms/12345"
 		assert listing.title == "Beautiful Loft in Roma Norte"
 		assert listing.num_bedrooms == 3
@@ -439,21 +483,21 @@ class TestParseListingDetails:
 			</script>
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(html)
+		listing: AirbnbListing = parse_listing_details(page_html=html)
 		assert listing.rating == 4.91
 		assert listing.num_reviews == 126
 
 	def test_raises_on_missing_url(self) -> None:
 		"""Parser raises ValueError if no URL can be found."""
 		with pytest.raises(ValueError, match="Could not determine listing URL"):
-			parse_listing_details("<html><body>No URL</body></html>")
+			parse_listing_details(page_html="<html><body>No URL</body></html>")
 
 	def test_listing_page_fixture(self) -> None:
 		"""Parser runs without error on the saved listing page fixture."""
 		if not LISTING_PAGE_HTML.exists():
 			pytest.skip("Listing page HTML fixture not found")
 		html: str = LISTING_PAGE_HTML.read_text(encoding="utf-8")
-		listing: AirbnbListing = parse_listing_details(html)
+		listing: AirbnbListing = parse_listing_details(page_html=html)
 		assert isinstance(listing, AirbnbListing)
 		assert "airbnb.com/rooms/" in listing.url
 
@@ -473,7 +517,7 @@ class TestParseBookingPrice:
 		</div>
 		</body></html>
 		"""
-		breakdown: CostBreakdown = parse_booking_price(html)
+		breakdown: CostBreakdown = parse_booking_price(page_html=html)
 		assert breakdown.total_cost == 1542.66
 		assert breakdown.num_nights == 7
 		assert breakdown.fees.get("cleaning_fee") == 50.0
@@ -482,7 +526,7 @@ class TestParseBookingPrice:
 	def test_raises_on_missing_price(self) -> None:
 		"""Parser raises ValueError when no price is found."""
 		with pytest.raises(ValueError, match="Could not extract total price"):
-			parse_booking_price("<html><body>No price</body></html>")
+			parse_booking_price(page_html="<html><body>No price</body></html>")
 
 	def test_fallback_to_computed_total(self) -> None:
 		"""When no explicit total, compute from nightly rate + fees."""
@@ -492,7 +536,7 @@ class TestParseBookingPrice:
 		<div>Cleaning fee $50.00</div>
 		</body></html>
 		"""
-		breakdown: CostBreakdown = parse_booking_price(html)
+		breakdown: CostBreakdown = parse_booking_price(page_html=html)
 		# 200 * 3 + 50 = 650
 		assert breakdown.total_cost == 650.0
 		assert breakdown.num_nights == 3

@@ -4,6 +4,8 @@ from src.agent.agent import (
 	AGENT_INSTRUCTIONS,
 	agent,
 	airbnb_toolset,
+	configure_agent_model,
+	ensure_ollama_model,
 	model,
 	playwright_server,
 )
@@ -14,6 +16,8 @@ __all__: list[str] = [
 	"TripWeek",
 	"agent",
 	"airbnb_toolset",
+	"configure_agent_model",
+	"ensure_ollama_model",
 	"model",
 	"playwright_server",
 ]
