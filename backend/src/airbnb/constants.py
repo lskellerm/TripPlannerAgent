@@ -6,12 +6,16 @@ from re import Pattern
 __all__: list[str] = [
 	"AIRBNB_ROOMS_PREFIX",
 	"BATHS_PATTERN",
+	"BEDROOMS_PATTERN",
+	"BEDS_ONLY_PATTERN",
 	"BEDS_PATTERN",
+	"FOR_N_NIGHTS_PATTERN",
 	"MAX_CARD_TEXT_LENGTH",
 	"MAX_NEIGHBORHOOD_LENGTH",
 	"MIN_NEIGHBORHOOD_LENGTH",
 	"NEIGHBORHOOD_TESTID_PATTERN",
 	"NIGHTLY_RATE_PATTERN",
+	"OG_TITLE_ROOM_PATTERN",
 	"PRICE_PATTERN",
 	"RATING_PATTERN",
 	"REVIEW_COUNT_PATTERN",
@@ -35,6 +39,11 @@ TOTAL_PRICE_PATTERN: Pattern[str] = re.compile(
 	r"\$(\d[\d,]*)\s+.*?(?:for|breakdown\s+for)\s+(\d+)\s*night",
 	re.IGNORECASE,
 )
+# Pattern that matches "$X for N nights" (direct total-stay price on listing pages)
+FOR_N_NIGHTS_PATTERN: Pattern[str] = re.compile(
+	r"\$(\d[\d,]*)\s+(?:for\s+)(\d+)\s*nights?",
+	re.IGNORECASE,
+)
 
 # ── Rating / Review Patterns ──
 
@@ -43,8 +52,15 @@ REVIEW_COUNT_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*reviews?", re.IGNORECA
 
 # ── Property Detail Patterns ──
 
+BEDROOMS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bedrooms?", re.IGNORECASE)
+BEDS_ONLY_PATTERN: Pattern[str] = re.compile(
+	r"(\d+)\s*(?:king|queen|sofa|twin|double|single|bunk\s+)?\s*beds?\b",
+	re.IGNORECASE,
+)
 BEDS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bed(?:room)?s?", re.IGNORECASE)
-BATHS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bath(?:room)?s?", re.IGNORECASE)
+BATHS_PATTERN: Pattern[str] = re.compile(
+	r"(\d+)\s*(?:private\s+|shared\s+)?bath(?:room)?s?", re.IGNORECASE
+)
 
 # ── Neighbourhood Extraction ──
 
@@ -57,3 +73,12 @@ MIN_NEIGHBORHOOD_LENGTH: int = 3
 MAX_NEIGHBORHOOD_LENGTH: int = 60
 # Maximum length of a card child's text to consider for neighbourhood extraction
 MAX_CARD_TEXT_LENGTH: int = 100
+
+# ── og:title Structured Data Extraction ──
+
+# Airbnb og:title format:
+# "<type> in <city> · ★<rating> · N bedroom(s) · N bed(s) · N [private|shared] bath(s)"
+OG_TITLE_ROOM_PATTERN: Pattern[str] = re.compile(
+	r"(\d+)\s*bedrooms?|(\d+)\s*beds?|(\d+)\s*(?:private\s+|shared\s+)?baths?",
+	re.IGNORECASE,
+)
