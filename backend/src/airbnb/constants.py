@@ -10,11 +10,13 @@ __all__: list[str] = [
 	"BEDS_ONLY_PATTERN",
 	"BEDS_PATTERN",
 	"FOR_N_NIGHTS_PATTERN",
+	"H1_TITLE_LOCATION_PATTERN",
 	"MAX_CARD_TEXT_LENGTH",
 	"MAX_NEIGHBORHOOD_LENGTH",
 	"MIN_NEIGHBORHOOD_LENGTH",
 	"NEIGHBORHOOD_TESTID_PATTERN",
 	"NIGHTLY_RATE_PATTERN",
+	"OG_TITLE_LOCATION_PATTERN",
 	"OG_TITLE_ROOM_PATTERN",
 	"PRICE_PATTERN",
 	"RATING_PATTERN",
@@ -81,4 +83,21 @@ MAX_CARD_TEXT_LENGTH: int = 100
 OG_TITLE_ROOM_PATTERN: Pattern[str] = re.compile(
 	r"(\d+)\s*bedrooms?|(\d+)\s*beds?|(\d+)\s*(?:private\s+|shared\s+)?baths?",
 	re.IGNORECASE,
+)
+
+# Extracts the location/neighbourhood from og:title text like
+# "Rental unit in Mexico City · ★5.0 · ..." → "Mexico City"
+OG_TITLE_LOCATION_PATTERN: Pattern[str] = re.compile(r"\bin\s+([^·]+)", re.IGNORECASE)
+
+# Extracts neighbourhood from a host-given listing title (H1 / <title>).
+# Matches "in {Location}" where Location starts with a capital letter and
+# consists of capitalised words separated by spaces, hyphens, or slashes,
+# optionally followed by a comma + another capitalised segment.
+# Rejects candidates starting with articles/prepositions ("a", "the").
+# Examples:
+#   "Remodelled Apartment in Central Condesa, CDMX" → "Central Condesa, CDMX"
+#   "Apartment in Roma-Condesa, very conveniently located." → "Roma-Condesa"
+#   "Well-equipped house in a picturesque neighborhood" → no match
+H1_TITLE_LOCATION_PATTERN: Pattern[str] = re.compile(
+	r"\bin\s+([A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*(?:,\s*[A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*)*)"
 )
