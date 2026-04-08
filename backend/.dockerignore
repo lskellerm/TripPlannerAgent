@@ -24,3 +24,4 @@ Dockerfile
 .playwright-mcp/
 search_page.html
 listing_*.html
+booking_*.html
