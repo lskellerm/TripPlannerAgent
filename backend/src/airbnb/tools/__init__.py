@@ -9,6 +9,7 @@ from src.airbnb.tools.analysis import (
 from src.airbnb.tools.parsers import (
 	parse_booking_price,
 	parse_listing_details,
+	parse_listing_page,
 	parse_search_results,
 )
 from src.airbnb.tools.urls import build_listing_url, build_search_url
@@ -21,6 +22,7 @@ __all__: list[str] = [
 	"filter_listings",
 	"parse_booking_price",
 	"parse_listing_details",
+	"parse_listing_page",
 	"parse_search_results",
 	"rank_by_category",
 ]
