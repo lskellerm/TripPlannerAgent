@@ -255,6 +255,49 @@ def _extract_room_id(url: str) -> Union[str, None]:
 	return match.group(1) if match else None
 
 
+def _find_similar_dates_links(soup: BeautifulSoup) -> set[int]:
+	"""Identify listing links inside the 'Available for similar dates' section.
+
+	Airbnb search pages sometimes append a carousel of listings
+	available on *different* dates.  These listings will fail at
+	the booking step (e.g. "This place is no longer available")
+	because their URLs carry non-matching check-in/check-out dates.
+
+	This function finds the carousel container by locating the
+	heading element (``<h2>`` or ``<h3>``) whose text contains
+	"similar dates", then walks up to the nearest ``role="group"``
+	ancestor (the carousel wrapper) and collects the ``id()`` of
+	every listing ``<a>`` tag inside it.
+
+	Args:
+		soup: Parsed BeautifulSoup document of a search results page.
+
+	Returns:
+		A set of Python ``id()`` values for ``<a>`` tags that should
+		be excluded from results.  Empty set if no such section exists.
+	"""
+	similar_heading: Union[Tag, None] = soup.find(
+		lambda tag: (
+			tag.name in ("h2", "h3")
+			and "similar dates" in tag.get_text(strip=True).lower()
+		)
+	)
+	if similar_heading is None:
+		return set()
+
+	similar_container: Union[Tag, None] = similar_heading.find_parent(
+		attrs={"role": "group"}
+	) or similar_heading.find_parent("section")
+	if similar_container is None:
+		return set()
+
+	return {
+		id(a)
+		for a in similar_container.find_all("a", href=True)
+		if isinstance(a["href"], str) and "/rooms/" in a["href"]
+	}
+
+
 def parse_search_results(
 	html_file: Union[str, None] = None,
 	page_html: Union[str, None] = None,
@@ -283,8 +326,18 @@ def parse_search_results(
 	listings: list[AirbnbListing] = []
 	seen_room_ids: set[str] = set()
 
+	# Detect the "Available for similar dates" carousel section.
+	# Airbnb search pages sometimes include listings with different
+	# check-in/check-out dates in a separate carousel at the bottom.
+	# These must be excluded — they don't match the user's requested
+	# dates and will fail at the booking step.
+	similar_dates_links: set[int] = _find_similar_dates_links(soup)
+
 	# Strategy 1: Extract from listing link cards in the DOM
 	for link in _find_listing_links(soup):
+		# Skip listings from the "Available for similar dates" section.
+		if id(link) in similar_dates_links:
+			continue
 		href: Union[str, AttributeValueList] = link["href"]
 		if not isinstance(href, str):
 			continue
@@ -724,13 +777,26 @@ def parse_booking_price(
 		parsed from the page when available and otherwise defaults to ``1``.
 
 	Raises:
-		ValueError: If no total price can be extracted from the page.
+		ModelRetry: If no total price can be extracted from the page.
 		ValueError: If ``num_people`` is less than ``1``.
 	"""
 	if num_people < 1:
 		raise ValueError("num_people must be at least 1.")
 
 	html_content: str = _resolve_html(html_file=html_file, page_html=page_html)
+
+	# Detect the LISTING_UNAVAILABLE sentinel from the agent's browser_evaluate
+	# availability check.  When saved to a file via Playwright MCP, the
+	# JSON-stringified value is decoded by _resolve_html / _unwrap_json_string.
+	_stripped_content: str = html_content.strip()
+	if _stripped_content in ("LISTING_UNAVAILABLE", '"LISTING_UNAVAILABLE"'):
+		raise ModelRetry(
+			"Listing is unavailable for the selected dates — the booking "
+			"page returned LISTING_UNAVAILABLE.  Skip this listing and "
+			"move to the next one.  Do NOT retry or call parse_booking_price "
+			"for this listing again."
+		)
+
 	soup = BeautifulSoup(html_content, "lxml")
 	page_text: str = soup.get_text(" ", strip=True)
 
@@ -865,22 +931,24 @@ def parse_booking_price(
 		# dates.  Provide a specific error message so the agent can skip
 		# the listing rather than retrying.
 		_unavailable_pattern: Pattern[str] = re.compile(
-			r"(?:those\s+)?dates?\s+(?:are\s+)?not\s+available",
+			r"(?:no\s+longer\s+available|(?:those\s+)?dates?\s+(?:are\s+)?(?:no\s+longer\s+|not\s+)available)",
 			re.IGNORECASE,
 		)
 		if _unavailable_pattern.search(page_text):
-			raise ValueError(
-				"Listing is not available for the selected dates. "
-				"The booking section shows 'Those dates are not available'. "
-				"Skip this listing and try the next one."
+			raise ModelRetry(
+				"Listing is unavailable for the selected dates. "
+				"The booking page indicates this listing is no longer "
+				"available or the dates are not available. "
+				"Skip this listing and move to the next one. "
+				"Do NOT retry or call parse_booking_price for this listing again."
 			)
-		raise ValueError(
+		raise ModelRetry(
 			"Could not extract total price from the booking page HTML. "
 			"Ensure you are parsing the booking/checkout page (after "
 			"clicking Reserve), not the listing page.  The booking page "
 			"should contain the 'Total USD' price breakdown.  Use "
 			"browser_click(element='Reserve') to navigate to the booking "
-			"page, then browser_wait_for(text='Total') before saving."
+			"page, then browser_wait_for(text='Price details') before saving."
 		)
 
 	return CostBreakdown(

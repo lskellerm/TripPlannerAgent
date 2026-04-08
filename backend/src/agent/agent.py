@@ -43,7 +43,6 @@ from starlette.applications import Starlette
 from src.airbnb.tools import (
 	build_listing_url,
 	build_search_url,
-	calculate_cost_breakdown,
 	calculate_trip_totals,
 	filter_listings,
 	parse_booking_price,
@@ -90,9 +89,9 @@ instrument_httpx()
 # TODO: Investigate running listing explorations in parallel.  Browser
 # operations (navigate/wait/save) must remain sequential (single Playwright
 # instance), but custom tool calls (parse_listing_page) could benefit from
-# asyncio.gather if multiple HTML files are already saved.  Also experiment
-# with ``parallel_tool_calls=True`` in ``ModelSettings`` for non-browser
-# tool batches.
+# asyncio.gather if multiple HTML files are already saved.
+# ``parallel_tool_calls=True`` is now enabled in ``ModelSettings`` to allow
+# the model to batch independent non-browser tool calls in a single turn.
 
 # TODO: Replace inline progress reporting with `pydantic-ai-todo`
 # TodoCapability for structured real-time progress streaming to the
@@ -146,44 +145,57 @@ Follow these steps when the user asks you to plan a trip or find Airbnb listings
       — wait for the booking widget (including the Reserve button) to fully
       load.  Do NOT wait for generic text like "nights" because the
       calendar section renders before the pricing widget.
-   c. **Save listing HTML** — `browser_evaluate` with
-      `function`: `"() => document.documentElement.outerHTML"` and
-      `filename`: `"listing_<room_id>.html"`.
-   d. **Parse listing details** — Call
-      `parse_listing_details(html_file="listing_<room_id>.html")` to extract
-      metadata (bedrooms, bathrooms, amenities, rating, reviews,
-      neighbourhood).
-   e. **Click Reserve** — Use `browser_evaluate` to click the Reserve
-      button directly via JavaScript, WITHOUT calling `browser_snapshot`:
-      `browser_evaluate(function="() => { const btn = [...document.querySelectorAll('button')].find(b => b.textContent.trim().includes('Reserve')); if (btn) { setTimeout(() => btn.click(), 100); return 'Reserve button found, click scheduled'; } return 'Reserve button not found'; }")`
+   c. **Save listing HTML + click Reserve** — Use a SINGLE `browser_evaluate`
+      call that saves the page HTML AND schedules the Reserve button click:
+      `browser_evaluate(function="() => { const btn = [...document.querySelectorAll('button')].find(b => b.textContent.trim().includes('Reserve')); if (btn) setTimeout(() => btn.click(), 200); return document.documentElement.outerHTML; }", filename="listing_<room_id>.html")`
+      This saves the full rendered HTML to disk (for parsing later) AND
+      triggers the navigation to the booking page — all in one round trip.
       The `setTimeout` defers the click so `browser_evaluate` returns
-      before the navigation starts.  **CRITICAL — NEVER call
-      `browser_snapshot()` during listing exploration (Step 6).**
-      Snapshots return the full accessibility tree (~10 000 tokens for an
-      Airbnb listing page) and will exhaust your context window.  If you
-      need to interact with other elements, prefer `browser_evaluate`
-      with targeted JavaScript over a full snapshot.
-   f. **Wait for booking page** — Use `browser_wait_for(text="Total")` to
-      wait for the booking page with the full price breakdown to load.
-   g. **Save booking HTML** — `browser_evaluate` with
+      the HTML before the navigation starts.
+      **CRITICAL — NEVER call `browser_snapshot()` during listing
+      exploration (Step 6).**  Snapshots return the full accessibility
+      tree (~10 000 tokens for an Airbnb listing page) and will exhaust
+      your context window.  If you need to interact with other elements,
+      prefer `browser_evaluate` with targeted JavaScript over a full
+      snapshot.
+   d. **Wait for booking page + check availability** — Use
+      `browser_wait_for(text="Price details")` to wait for the booking
+      page to load.  This text appears on ALL booking page variants:
+      both "Confirm and pay" (instant-book) and "Request to book" (host-
+      approval) pages. 
+      Then immediately check availability with `browser_evaluate` using
+      `function`: `"() => document.body.innerText.includes('no longer available') ? 'LISTING_UNAVAILABLE' : 'LISTING_AVAILABLE'"`
+      Do NOT pass a `filename` — the result must appear inline so you can
+      read it.  If the result is `LISTING_UNAVAILABLE`, the listing cannot
+      be booked — **skip it immediately** and move to the next listing.
+      Do NOT proceed to Steps 6e or 6f for this listing.
+   e. **Save booking HTML** — Only if Step 6d confirmed availability:
+      `browser_evaluate` with
       `function`: `"() => document.documentElement.outerHTML"` and
       `filename`: `"booking_<room_id>.html"`.
-   h. **Parse booking price** — Call
-      `parse_booking_price(html_file="booking_<room_id>.html", num_people=<N>)`
-      where `<N>` is the number of adults/people from the user's request.
-      This extracts the total cost with fee breakdown from the checkout
-      page's price card, which shows the accurate total after all fees,
-      taxes, and discounts.
+   f. **Parse listing + booking (parallel)** — Call BOTH parser tools
+      **in the same turn** as parallel tool calls:
+      - `parse_listing_details(html_file="listing_<room_id>.html")` —
+        extracts metadata (bedrooms, bathrooms, amenities, rating, reviews,
+        neighbourhood)
+      - `parse_booking_price(html_file="booking_<room_id>.html", num_people=<N>)`
+        — extracts the total cost with fee breakdown from the checkout page`
+      Both tools read from previously saved files and are completely`
+      independent — they MUST be requested together in a single turn to
+      minimise LLM round trips.
 
-7. **Filter Listings** — Use `filter_listings(listings, constraints)` to
-   narrow down listings that match the user's requirements (bedrooms,
-   bathrooms, amenities, budget, neighbourhood preferences).
+7. **Filter Listings** — **Always** call `filter_listings(listings, constraints)`
+   after gathering listings with cost data.  Construct a ``TripWeek`` using the
+   trip details you already have (check-in, check-out, location, num_people,
+   participant names).  Fields like ``min_bedrooms`` and ``min_bathrooms`` will
+   be inferred automatically from ``num_people`` if you omit them.  If the user
+   specified extra constraints (amenities, budget, neighbourhood), include those;
+   otherwise the defaults (no amenity filter, no budget cap, no neighbourhood
+   restriction) will keep all listings that meet the inferred minimums.
+   **Do NOT skip this step** — even with no explicit user constraints, filtering
+   validates that listings have enough bedrooms/bathrooms for the group size.
 
-8. **Calculate Cost Breakdowns** — Use
-   `calculate_cost_breakdown(total_cost, num_people, num_nights, fees)` to
-   compute per-person and per-night costs for each qualifying listing.
-
-9. **Rank by Category** — Use `rank_by_category(listings)` to identify the
+8. **Rank by Category** — Use `rank_by_category(listings)` to identify the
     best listing in each category:
     - Best price (lowest total cost)
     - Best value (best cost-to-rating ratio)
@@ -191,7 +203,11 @@ Follow these steps when the user asks you to plan a trip or find Airbnb listings
     - Best location (has neighbourhood data)
     - Best reviews (highest rating)
 
-10. **Multi-week Trip Totals** — For multi-week trips, use
+   **Steps 7 + 8 together:** Call `filter_listings` and `rank_by_category`
+   **in the same turn** as parallel tool calls — they are independent and
+   doing them together saves a full LLM round trip (~45K input tokens).
+
+9. **Multi-week Trip Totals** — For multi-week trips, use
     `calculate_trip_totals(week_analyses, participant_names)` to compute
     per-person totals across all weeks, accounting for variable participants.
 
@@ -223,17 +239,23 @@ instead.
 The correct sequence for each listing is:
 1. `browser_navigate(url)` — load the listing page
 2. `browser_wait_for(text="Reserve")` — wait for the booking widget to render
-3. `browser_evaluate(function="() => document.documentElement.outerHTML", filename="listing_<room_id>.html")` — save listing HTML
-4. `parse_listing_details(html_file="listing_<room_id>.html")` — extract listing metadata
-5. `browser_evaluate(function="() => { ... }")` — click Reserve button via JavaScript (see Step 6e above)
-6. `browser_wait_for(text="Total")` — wait for price breakdown to load
-7. `browser_evaluate(function="() => document.documentElement.outerHTML", filename="booking_<room_id>.html")` — save booking HTML
-8. `parse_booking_price(html_file="booking_<room_id>.html", num_people=<N>)` — extract total cost from checkout page
+3. `browser_evaluate(function="() => { const btn = [...document.querySelectorAll('button')].find(b => b.textContent.trim().includes('Reserve')); if (btn) setTimeout(() => btn.click(), 200); return document.documentElement.outerHTML; }", filename="listing_<room_id>.html")` — save listing HTML AND click Reserve
+4. `browser_wait_for(text="Price details")` — wait for booking page to load
+5. `browser_evaluate(function="() => document.body.innerText.includes('no longer available') ? 'LISTING_UNAVAILABLE' : 'LISTING_AVAILABLE'")` — check availability inline (skip listing if `LISTING_UNAVAILABLE`)
+6. `browser_evaluate(function="() => document.documentElement.outerHTML", filename="booking_<room_id>.html")` — save booking HTML (only if available)
+7. `parse_listing_details(html_file="listing_<room_id>.html")` + `parse_booking_price(html_file="booking_<room_id>.html", num_people=<N>)` — **parallel** parse both saved HTML files in one turn
 
 ## Error Handling & Circuit Breaker
 
 When exploring listings in Step 6, errors WILL occur.  Follow these rules:
 
+- **Unavailable Listings** — After clicking Reserve, if the booking page
+  shows "This place is no longer available" or "These dates are no longer
+  available", the `browser_evaluate` availability check in Step 6d will
+  return `LISTING_UNAVAILABLE`.  Skip the listing immediately and move
+  to the next one.  Do NOT retry, edit dates, or call parsers for it.
+  If `parse_booking_price` returns an error mentioning "LISTING_UNAVAILABLE"
+  or "unavailable", treat it the same way — skip and move on.
 - **404 / Error Pages** — If after navigating to a listing the page title
   contains "Oops!", "Page not found", or "Error code: 404", skip that
   listing immediately and move on to the next one.  Do NOT retry the
@@ -283,23 +305,19 @@ As you work through the steps above, **always report your progress** to the
 user so they can follow along in real time.  Before starting each step, emit
 a short status line in the format:
 
-> **Step N/10: <description>**
+> **Step N/9: <description>**
 
 For example:
-- "**Step 1/10: Building search URL for Mexico City, Mar 15–22, 4 guests…**"
-- "**Step 3/10: Waiting for search results to load…**"
-- "**Step 6/10: Exploring listing 3 of 5 — 'Sunny Loft in Roma Norte'…**"
+- "**Step 1/9: Building search URL for Mexico City, Mar 15–22, 4 guests…**"
+- "**Step 3/9: Waiting for search results to load…**"
+- "**Step 6/9: Exploring listing 3 of 5 — 'Sunny Loft in Roma Norte'…**"
 
 When a step with sub-iterations (e.g. exploring multiple listings) is in
 progress, report each iteration so the user sees movement:
-- "**Step 6/10: Exploring listing 5 of 5 — 'Penthouse in Condesa'…**"
+- "**Step 6/9: Exploring listing 5 of 5 — 'Penthouse in Condesa'…**"
 
 If a listing fails, briefly report it:
-- "**Step 6/10: Listing 3 of 5 returned 404, skipping…**"
-
-If a step is skipped (e.g. no filtering needed because the user gave no
-constraints), briefly note it:
-- "**Step 7/10: Skipped — no filter constraints provided.**"
+- "**Step 6/9: Listing 3 of 5 returned 404, skipping…**"
 
 ## Resuming Mid-Workflow
 
@@ -326,17 +344,44 @@ workflow is complete or you have meaningful progress to report.
   outside the main listing exploration loop.
 - **`browser_click` and `ref` values** — If you ever need `browser_click`
   outside Step 6, it requires a `ref` from `browser_snapshot`.  Inside
-  Step 6, always use the JavaScript click pattern from Step 6e instead.
+  Step 6, always use the JavaScript click pattern from Step 6c instead.
 - Always wait at least 5 seconds between Airbnb page loads to avoid rate
   limiting.
 - If you encounter a CAPTCHA or empty results, inform the user immediately.
 - Present results clearly with cost breakdowns and categorical rankings.
 - When presenting listings, include: title, nightly rate, total cost,
   cost per person, rating, number of reviews, and key amenities.
-- If the user specifies constraints (bedrooms, budget, amenities), always
-  filter listings before presenting results.
+- If the user specifies constraints (bedrooms, budget, amenities), include
+  them in the ``TripWeek`` passed to ``filter_listings``.  Even without
+  explicit constraints, always run filtering (Step 7) with inferred defaults.
 - For multi-week trips with different participants per week, clearly show
   which weeks each person participates in and their total cost.
+
+## Parallel Tool Calls
+
+You may request **multiple tool calls in a single turn** when the calls
+are independent of each other.  This is critical for performance — each
+additional LLM round trip resends the full conversation history
+(~30K–50K tokens), so eliminating unnecessary rounds has compounding
+savings.
+
+**Mandatory parallel batches (ALWAYS request these together):**
+
+- **Step 6f:** `parse_listing_details` + `parse_booking_price` for each
+  listing — both read from independent saved HTML files and MUST be
+  called in the same turn.
+- **Steps 7 + 8:** `filter_listings` + `rank_by_category` — independent
+  analysis tools that MUST be called together in one turn.
+
+**Other good candidates for parallel batching:**
+
+- Any combination of non-browser analysis/parser tools that do NOT depend
+  on each other's output.
+
+**Never batch browser tools** (`browser_navigate`, `browser_wait_for`,
+`browser_evaluate`, `browser_click`, `browser_snapshot`) — they share a
+single browser instance and must run sequentially.  Each browser call
+depends on the page state left by the previous call.
 """
 
 # TODO: Replace inline progress reporting with `pydantic-ai-todo` TodoCapability
@@ -393,8 +438,8 @@ to parse Airbnb HTML yourself or compute costs manually.
 - `parse_listing_page` combines both into a single call (useful when listing
   page pricing is available), but `parse_booking_price` on the checkout page
   is more reliable.
-- Analysis: `filter_listings`, `calculate_cost_breakdown`,
-  `rank_by_category`, `calculate_trip_totals`
+- Analysis: `filter_listings`, `rank_by_category`,
+  `calculate_trip_totals`
 """
 
 airbnb_toolset: FunctionToolset = FunctionToolset(
@@ -406,7 +451,6 @@ airbnb_toolset: FunctionToolset = FunctionToolset(
 		Tool(parse_booking_price, takes_ctx=False),
 		Tool(parse_listing_page, takes_ctx=False),
 		Tool(filter_listings, takes_ctx=False),
-		Tool(calculate_cost_breakdown, takes_ctx=False),
 		Tool(calculate_trip_totals, takes_ctx=False),
 		Tool(rank_by_category, takes_ctx=False),
 	],
@@ -425,7 +469,7 @@ agent: Agent = Agent(
 		max_tokens=settings.OLLAMA_MAX_TOKENS,
 		temperature=settings.OLLAMA_TEMPERATURE,
 		timeout=settings.OLLAMA_TIMEOUT,
-		parallel_tool_calls=False,
+		parallel_tool_calls=True,
 		frequency_penalty=settings.OLLAMA_FREQUENCY_PENALTY,
 		presence_penalty=settings.OLLAMA_PRESENCE_PENALTY,
 	),

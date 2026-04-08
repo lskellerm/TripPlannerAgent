@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from pydantic_ai.exceptions import ModelRetry
 
 from src.agent.schemas import TripWeek
 from src.airbnb.schemas import (
@@ -533,6 +534,64 @@ class TestParseSearchResults:
 		assert listings[0].num_bedrooms == 2
 		assert listings[0].num_beds == 2
 
+	def test_excludes_available_for_similar_dates_listings(self) -> None:
+		"""Parser excludes listings from the 'Available for similar dates' carousel.
+
+		Airbnb search pages sometimes append a carousel of listings with
+		different check-in/check-out dates.  These must be excluded because
+		they don't match the user's requested dates and will fail at booking.
+		"""
+		html = """
+		<html><body>
+		<!-- Primary search results -->
+		<div>
+			<a href="/rooms/11111?check_in=2026-04-15&check_out=2026-04-22">
+				<div><h2>Primary Listing A</h2><span>$500 for 7 nights</span></div>
+			</a>
+		</div>
+		<div>
+			<a href="/rooms/22222?check_in=2026-04-15&check_out=2026-04-22">
+				<div><h2>Primary Listing B</h2><span>$600 for 7 nights</span></div>
+			</a>
+		</div>
+		<!-- "Available for similar dates" carousel — different dates -->
+		<div role="group">
+			<div><h2>Available for similar dates</h2></div>
+			<div>
+				<a href="/rooms/33333?check_in=2026-04-17&check_out=2026-04-21">
+					<div><h2>Similar Dates Listing</h2><span>$300 for 4 nights</span></div>
+				</a>
+			</div>
+			<div>
+				<a href="/rooms/44444?check_in=2026-04-18&check_out=2026-04-22">
+					<div><h2>Another Similar Listing</h2><span>$400 for 4 nights</span></div>
+				</a>
+			</div>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		room_ids = {
+			listing.url.split("/rooms/")[1].split("?")[0] for listing in listings
+		}
+		assert room_ids == {"11111", "22222"}
+		assert len(listings) == 2
+
+	def test_no_similar_dates_section_returns_all(self) -> None:
+		"""When there is no 'Available for similar dates' section, all listings are returned."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/55555"><div><h2>Listing One</h2><span>$400 per night</span></div></a>
+		</div>
+		<div>
+			<a href="/rooms/66666"><div><h2>Listing Two</h2><span>$500 per night</span></div></a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 2
+
 
 class TestParseListingDetails:
 	"""Verify listing detail page parsing."""
@@ -653,8 +712,8 @@ class TestParseBookingPrice:
 		assert breakdown.fees.get("service_fee") == 120.0
 
 	def test_raises_on_missing_price(self) -> None:
-		"""Parser raises ValueError when no price is found."""
-		with pytest.raises(ValueError, match="Could not extract total price"):
+		"""Parser raises ModelRetry when no price is found."""
+		with pytest.raises(ModelRetry, match="Could not extract total price"):
 			parse_booking_price(page_html="<html><body>No price</body></html>")
 
 	def test_raises_descriptive_error_when_dates_not_available(self) -> None:
@@ -669,7 +728,7 @@ class TestParseBookingPrice:
 		</div>
 		</body></html>
 		"""
-		with pytest.raises(ValueError, match="not available for the selected dates"):
+		with pytest.raises(ModelRetry, match="unavailable for the selected dates"):
 			parse_booking_price(page_html=html)
 
 	def test_raises_dates_not_available_variant_wording(self) -> None:
@@ -679,7 +738,7 @@ class TestParseBookingPrice:
 		<div>Date not available</div>
 		</body></html>
 		"""
-		with pytest.raises(ValueError, match="not available for the selected dates"):
+		with pytest.raises(ModelRetry, match="unavailable for the selected dates"):
 			parse_booking_price(page_html=html)
 
 	def test_fallback_to_computed_total(self) -> None:
@@ -733,13 +792,35 @@ class TestParseBookingPrice:
 		assert breakdown.total_cost == 750.0
 		assert breakdown.num_nights == 7
 
-	def test_real_unavailable_listing_html(self) -> None:
-		"""Integration test: real HTML from listing with unavailable dates."""
+	def test_real_listing_html_extracts_price(self) -> None:
+		"""Integration test: real HTML from listing extracts price data."""
 		html_path = Path(__file__).resolve().parent.parent / "listing_15326965.html"
 		if not html_path.exists():
 			pytest.skip("listing_15326965.html not available")
-		with pytest.raises(ValueError, match="not available for the selected dates"):
-			parse_booking_price(html_file=str(html_path))
+		breakdown: CostBreakdown = parse_booking_price(html_file=str(html_path))
+		assert breakdown.total_cost == 366.0
+		assert breakdown.num_nights == 5
+
+	def test_listing_unavailable_sentinel_raises(self) -> None:
+		"""Parser raises clear error when booking HTML contains the LISTING_UNAVAILABLE sentinel."""
+		with pytest.raises(ModelRetry, match="LISTING_UNAVAILABLE"):
+			parse_booking_price(page_html="LISTING_UNAVAILABLE")
+
+	def test_listing_unavailable_sentinel_json_wrapped(self) -> None:
+		"""Parser handles JSON-stringified LISTING_UNAVAILABLE from browser_evaluate."""
+		with pytest.raises(ModelRetry, match="LISTING_UNAVAILABLE"):
+			parse_booking_price(page_html='"LISTING_UNAVAILABLE"')
+
+	def test_no_longer_available_text_raises(self) -> None:
+		"""Parser detects 'no longer available' text on booking pages."""
+		html = """
+		<html><body>
+		<h2>This place is no longer available</h2>
+		<p>Edit your dates to get updated pricing</p>
+		</body></html>
+		"""
+		with pytest.raises(ModelRetry, match="unavailable"):
+			parse_booking_price(page_html=html)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1379,12 +1460,12 @@ class TestParseListingPage:
 			parse_listing_page(page_html=html)
 
 	def test_raises_on_missing_price(self) -> None:
-		"""Raises ValueError when no price can be extracted."""
+		"""Raises ModelRetry when no price can be extracted."""
 		html = """
 		<html><head>
 		<meta property="og:url" content="https://www.airbnb.com/rooms/123" />
 		<link rel="canonical" href="https://www.airbnb.com/rooms/123" />
 		</head><body>No price here</body></html>
 		"""
-		with pytest.raises(ValueError, match="Could not extract total price"):
+		with pytest.raises(ModelRetry, match="Could not extract total price"):
 			parse_listing_page(page_html=html)
