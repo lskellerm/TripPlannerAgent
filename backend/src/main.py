@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Union
 
 import logfire
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	On startup:
 	- Configures Logfire observability (when ``LOGFIRE_TOKEN`` is set).
 	- Creates all database tables if they do not yet exist.
+	- Ensures the Playwright HTML output directory exists.
 	- Starts the Playwright MCP server subprocess via the agent context.
 
 	On shutdown:
@@ -44,6 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	)
 	logfire.configure(token=logfire_token)
 	logfire.instrument_fastapi(app)
+	logfire.instrument_pydantic_ai()
 	logfire.instrument_httpx()
 	logfire.instrument_sqlalchemy(engine=engine)
 	logfire.instrument_sqlite3()
@@ -51,6 +54,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	# ── Database Setup ──
 	async with engine.begin() as conn:
 		await conn.run_sync(Base.metadata.create_all)
+
+	# ── Playwright HTML Output Directory ──
+	Path(settings.PLAYWRIGHT_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
 
 	# ── Playwright MCP Server Lifecycle ──
 	async with trip_agent:
