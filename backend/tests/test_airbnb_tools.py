@@ -22,6 +22,7 @@ from src.airbnb.tools.parsers import (
 	_unwrap_json_string,
 	parse_booking_price,
 	parse_listing_details,
+	parse_listing_page,
 	parse_search_results,
 )
 from src.airbnb.tools.urls import build_listing_url, build_search_url
@@ -346,6 +347,64 @@ class TestParseSearchResults:
 		assert len(listings) == 1
 		assert listings[0].nightly_rate == 220.0
 
+	def test_extracts_beds_and_bedrooms_from_subtitle(self) -> None:
+		"""Parser extracts num_beds and num_bedrooms from card subtitle elements."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/22222">
+				<div>
+					<h2>Cozy Apartment</h2>
+					<span data-testid="listing-card-subtitle">2 bedrooms 2 bedrooms 2 beds , · 2 beds</span>
+					<span>$150 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 1
+		assert listings[0].num_bedrooms == 2
+		assert listings[0].num_beds == 2
+
+	def test_extracts_beds_only_from_subtitle(self) -> None:
+		"""Parser extracts num_beds when subtitle only mentions beds, not bedrooms."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/33333">
+				<div>
+					<h2>Studio</h2>
+					<span data-testid="listing-card-subtitle">1 bed</span>
+					<span>$80 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 1
+		assert listings[0].num_beds == 1
+		assert listings[0].num_bedrooms is None
+
+	def test_extracts_location_from_card_title(self) -> None:
+		"""Parser extracts neighborhood from listing-card-title 'Apartment in City'."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/44444">
+				<div>
+					<div data-testid="listing-card-title">Apartment in Mexico City</div>
+					<span>$150 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 1
+		assert listings[0].neighborhood == "Mexico City"
+
 	def test_extracts_neighborhood_from_subtitle(self) -> None:
 		"""Parser extracts neighborhood from a data-testid subtitle element."""
 		html = """
@@ -445,6 +504,35 @@ class TestParseSearchResults:
 		# For JSON-unwrapped content we test via _unwrap_json_string directly.
 		assert isinstance(listings, list)
 
+	def test_skips_listing_name_containing_bed_keyword(self) -> None:
+		"""Parser skips subtitles where 'bed' appears in listing name, not bed info.
+
+		Regression test: listing names like "Brand New 2-Bedroom ..." contain
+		"bed" but don't match the structured bed-count regex.  The parser must
+		continue to the next subtitle (with actual bed info) instead of breaking.
+		"""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/69425">
+				<div>
+					<h2>Cozy Apartment</h2>
+					<span data-testid="listing-card-subtitle"></span>
+					<span data-testid="listing-card-subtitle">Brand New 2-Bedroom in the Heart of Trendy Roma</span>
+					<span data-testid="listing-card-subtitle">2 bedrooms 2 bedrooms 2 beds , · 2 beds</span>
+					<span data-testid="listing-card-subtitle"></span>
+					<span data-testid="listing-card-subtitle"></span>
+					<span>$150 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 1
+		assert listings[0].num_bedrooms == 2
+		assert listings[0].num_beds == 2
+
 
 class TestParseListingDetails:
 	"""Verify listing detail page parsing."""
@@ -465,6 +553,47 @@ class TestParseListingDetails:
 		assert listing.title == "Beautiful Loft in Roma Norte"
 		assert listing.num_bedrooms == 3
 		assert listing.num_bathrooms == 2
+
+	def test_extracts_room_data_from_og_title(self) -> None:
+		"""Parser extracts bedrooms, beds, baths from og:title format."""
+		html = """
+		<html><head>
+			<meta property="og:url" content="https://www.airbnb.com/rooms/10883847" />
+			<meta property="og:title" content="Home in Mexico City · ★4.88 · 1 bedroom · 1 bed · 1 private bath" />
+		</head><body></body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.num_bedrooms == 1
+		assert listing.num_beds == 1
+		assert listing.num_bathrooms == 1
+
+	def test_extracts_room_data_multiple_from_og_title(self) -> None:
+		"""Parser correctly extracts multi-digit room counts from og:title."""
+		html = """
+		<html><head>
+			<meta property="og:url" content="https://www.airbnb.com/rooms/99999" />
+			<meta property="og:title" content="Condo in CDMX · 3 bedrooms · 4 beds · 2 shared baths" />
+		</head><body></body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.num_bedrooms == 3
+		assert listing.num_beds == 4
+		assert listing.num_bathrooms == 2
+
+	def test_og_title_takes_priority_over_body(self) -> None:
+		"""og:title room data takes priority over page body text."""
+		html = """
+		<html><head>
+			<meta property="og:url" content="https://www.airbnb.com/rooms/55555" />
+			<meta property="og:title" content="Home in CDMX · 2 bedrooms · 3 beds · 1 bath" />
+		</head><body>
+			<div>5 bedrooms · 4 bathrooms</div>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.num_bedrooms == 2
+		assert listing.num_beds == 3
+		assert listing.num_bathrooms == 1
 
 	def test_extracts_from_json_ld(self) -> None:
 		"""Parser extracts rating and reviews from JSON-LD."""
@@ -528,6 +657,31 @@ class TestParseBookingPrice:
 		with pytest.raises(ValueError, match="Could not extract total price"):
 			parse_booking_price(page_html="<html><body>No price</body></html>")
 
+	def test_raises_descriptive_error_when_dates_not_available(self) -> None:
+		"""Parser detects 'dates not available' and raises a specific message."""
+		html = """
+		<html><body>
+		<div data-testid="book-it-default">
+			Check-in 4/15/2026 Checkout 4/22/2026
+			Guests 2 guests
+			Those dates are not available
+			Change dates
+		</div>
+		</body></html>
+		"""
+		with pytest.raises(ValueError, match="not available for the selected dates"):
+			parse_booking_price(page_html=html)
+
+	def test_raises_dates_not_available_variant_wording(self) -> None:
+		"""Parser detects variant wording of date unavailability."""
+		html = """
+		<html><body>
+		<div>Date not available</div>
+		</body></html>
+		"""
+		with pytest.raises(ValueError, match="not available for the selected dates"):
+			parse_booking_price(page_html=html)
+
 	def test_fallback_to_computed_total(self) -> None:
 		"""When no explicit total, compute from nightly rate + fees."""
 		html = """
@@ -540,6 +694,52 @@ class TestParseBookingPrice:
 		# 200 * 3 + 50 = 650
 		assert breakdown.total_cost == 650.0
 		assert breakdown.num_nights == 3
+
+	def test_extracts_for_n_nights_format(self) -> None:
+		"""Parser extracts price from '$X for N nights' format."""
+		html = """
+		<html><body>
+		<div>$344 for 7 nights</div>
+		</body></html>
+		"""
+		breakdown: CostBreakdown = parse_booking_price(page_html=html)
+		assert breakdown.total_cost == 344.0
+		assert breakdown.num_nights == 7
+		assert breakdown.cost_per_night == round(344.0 / 7, 2)
+
+	def test_extracts_show_price_breakdown_format(self) -> None:
+		"""Parser extracts price from '$X Show price breakdown for N nights'."""
+		html = """
+		<html><body>
+		<div>$1,200 Show price breakdown for 5 nights</div>
+		</body></html>
+		"""
+		breakdown: CostBreakdown = parse_booking_price(page_html=html)
+		assert breakdown.total_cost == 1200.0
+		assert breakdown.num_nights == 5
+		assert breakdown.cost_per_night == 240.0
+
+	def test_x_nights_format_preferred_over_for_n_nights(self) -> None:
+		"""The '$X x N nights' format takes priority when both are present."""
+		html = """
+		<html><body>
+		<div>$100.00 x 7 nights</div>
+		<div>$800 for 7 nights</div>
+		<div>Total (USD) $750.00</div>
+		</body></html>
+		"""
+		breakdown: CostBreakdown = parse_booking_price(page_html=html)
+		# $100/night x 7 = $700 base, Total = $750 (from explicit Total line)
+		assert breakdown.total_cost == 750.0
+		assert breakdown.num_nights == 7
+
+	def test_real_unavailable_listing_html(self) -> None:
+		"""Integration test: real HTML from listing with unavailable dates."""
+		html_path = Path(__file__).resolve().parent.parent / "listing_15326965.html"
+		if not html_path.exists():
+			pytest.skip("listing_15326965.html not available")
+		with pytest.raises(ValueError, match="not available for the selected dates"):
+			parse_booking_price(html_file=str(html_path))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -927,3 +1127,264 @@ class TestCalculateTripTotals:
 		"""Empty analyses returns all zeros."""
 		totals: dict[str, int | float] = calculate_trip_totals([], ["Karina", "Luis"])
 		assert totals == {"Karina": 0.0, "Luis": 0.0}
+
+
+# ══════════════════════════════════════════════════════════════
+# parse_booking_price — num_people parameter
+# ══════════════════════════════════════════════════════════════
+
+
+class TestParseBookingPriceNumPeople:
+	"""Verify num_people parameter in parse_booking_price."""
+
+	def test_default_num_people_is_one(self) -> None:
+		"""Without num_people, cost_per_person equals total_cost."""
+		html = "<html><body><div>$700 for 7 nights</div></body></html>"
+		breakdown: CostBreakdown = parse_booking_price(page_html=html)
+		assert breakdown.num_people == 1
+		assert breakdown.cost_per_person == 700.0
+
+	def test_num_people_splits_cost(self) -> None:
+		"""num_people=2 halves the per-person cost."""
+		html = "<html><body><div>$700 for 7 nights</div></body></html>"
+		breakdown: CostBreakdown = parse_booking_price(page_html=html, num_people=2)
+		assert breakdown.num_people == 2
+		assert breakdown.cost_per_person == 350.0
+		assert breakdown.cost_per_night_per_person == 50.0
+
+	def test_num_people_four(self) -> None:
+		"""num_people=4 splits cost four ways."""
+		html = """
+		<html><body>
+		<div>$200.00 x 5 nights</div>
+		<div>Total (USD) $1,000.00</div>
+		</body></html>
+		"""
+		breakdown: CostBreakdown = parse_booking_price(page_html=html, num_people=4)
+		assert breakdown.num_people == 4
+		assert breakdown.cost_per_person == 250.0
+		assert breakdown.cost_per_night == 200.0
+		assert breakdown.cost_per_night_per_person == 50.0
+
+	def test_num_people_zero_raises(self) -> None:
+		"""num_people=0 raises ValueError."""
+		html = "<html><body><div>$700 for 7 nights</div></body></html>"
+		with pytest.raises(ValueError, match="num_people must be at least 1"):
+			parse_booking_price(page_html=html, num_people=0)
+
+	def test_num_people_negative_raises(self) -> None:
+		"""Negative num_people raises ValueError."""
+		html = "<html><body><div>$700 for 7 nights</div></body></html>"
+		with pytest.raises(ValueError, match="num_people must be at least 1"):
+			parse_booking_price(page_html=html, num_people=-1)
+
+
+# ══════════════════════════════════════════════════════════════
+# parse_listing_details — neighbourhood from og:title
+# ══════════════════════════════════════════════════════════════
+
+
+class TestParseListingDetailsNeighborhood:
+	"""Verify neighbourhood extraction — H1 title, og:title, meta description."""
+
+	def test_h1_extracts_specific_neighborhood(self) -> None:
+		"""H1 'Remodelled Apartment in Central Condesa, CDMX' yields Central Condesa, CDMX."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Rental unit in Mexico City · ★4.96 · 2 bedrooms · 2 beds · 2 baths" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Remodelled Apartment in Central Condesa, CDMX</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Central Condesa, CDMX"
+
+	def test_h1_extracts_hyphenated_neighborhood(self) -> None:
+		"""H1 'Apartment in Roma-Condesa, very conveniently located.' yields Roma-Condesa."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Rental unit in Mexico City · ★5.0 · 2 bedrooms · 2 beds · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Apartment in Roma-Condesa, very conveniently located.</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Roma-Condesa"
+
+	def test_h1_rejects_generic_description(self) -> None:
+		"""H1 with 'in a picturesque neighborhood' falls back to og:title city."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Mexico City · ★4.97 · 2 bedrooms · 2 beds · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Well-equipped house in a picturesque and safe neighborhood</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Mexico City"
+
+	def test_h1_rejects_the_center(self) -> None:
+		"""H1 with 'in the center of the city' falls back to og:title city."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Rental unit in Mexico City · ★5.0 · 2 bedrooms · 2 beds · 2 baths" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Great apartment in the center of the city.</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Mexico City"
+
+	def test_og_title_extracts_city(self) -> None:
+		"""og:title 'Rental unit in Mexico City · ...' yields Mexico City."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Rental unit in Mexico City · ★5.0 · 2 bedrooms · 2 beds · 2 baths" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body></body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Mexico City"
+
+	def test_og_title_extracts_neighborhood_with_spaces(self) -> None:
+		"""og:title 'Home in Roma Norte · ...' yields Roma Norte."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Roma Norte · ★4.88 · 1 bedroom · 1 bed · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body></body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Roma Norte"
+
+	def test_fallback_to_meta_description(self) -> None:
+		"""When og:title has no 'in <Location>', fall back to meta description."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Amazing Apartment · ★4.5 · 2 bedrooms" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		<meta name="description" content="Cozy apartment in Condesa, Mexico City" />
+		</head><body></body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Condesa, Mexico City"
+
+	def test_no_neighborhood_available(self) -> None:
+		"""When neither og:title nor meta desc has location, neighborhood is None."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Amazing Apartment · ★4.5" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body></body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood is None
+
+	def test_h1_no_in_pattern_falls_back_to_og_title(self) -> None:
+		"""H1 without 'in' pattern falls back to og:title location."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Mexico City · ★4.88 · 1 bedroom · 1 bed · 1 private bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>CASA CONDESA ZAPATA *****</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Mexico City"
+
+
+# ══════════════════════════════════════════════════════════════
+# parse_listing_page — combined tool
+# ══════════════════════════════════════════════════════════════
+
+
+class TestParseListingPage:
+	"""Verify the combined parse_listing_page tool."""
+
+	def test_returns_listing_with_cost(self) -> None:
+		"""parse_listing_page returns a ListingWithCost with both fields."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Rental unit in Mexico City · ★5.0 · 2 bedrooms · 2 beds · 2 baths" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<div>$344 for 7 nights</div>
+		</body></html>
+		"""
+		result: ListingWithCost = parse_listing_page(page_html=html, num_people=2)
+		assert isinstance(result, ListingWithCost)
+		assert isinstance(result.listing, AirbnbListing)
+		assert isinstance(result.cost_breakdown, CostBreakdown)
+
+	def test_listing_details_populated(self) -> None:
+		"""Listing details are correctly extracted."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Roma Norte · ★4.88 · 1 bedroom · 1 bed · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/999" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/999" />
+		</head><body>
+		<div>$500 for 5 nights</div>
+		</body></html>
+		"""
+		result: ListingWithCost = parse_listing_page(page_html=html)
+		assert result.listing.num_bedrooms == 1
+		assert result.listing.num_beds == 1
+		assert result.listing.num_bathrooms == 1
+		assert result.listing.neighborhood == "Roma Norte"
+
+	def test_cost_breakdown_populated(self) -> None:
+		"""Cost breakdown is correctly computed with num_people."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Rental unit in Condesa · ★4.9 · 3 bedrooms · 3 beds · 2 baths" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/555" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/555" />
+		</head><body>
+		<div>$100.00 x 7 nights</div>
+		<div>Cleaning fee $50.00</div>
+		<div>Total (USD) $750.00</div>
+		</body></html>
+		"""
+		result: ListingWithCost = parse_listing_page(page_html=html, num_people=3)
+		assert result.cost_breakdown.total_cost == 750.0
+		assert result.cost_breakdown.num_people == 3
+		assert result.cost_breakdown.cost_per_person == 250.0
+		assert result.cost_breakdown.num_nights == 7
+		assert result.cost_breakdown.fees.get("cleaning_fee") == 50.0
+
+	def test_raises_on_missing_url(self) -> None:
+		"""Raises ValueError when no listing URL in the page."""
+		html = """
+		<html><head></head><body>
+		<div>$344 for 7 nights</div>
+		</body></html>
+		"""
+		with pytest.raises(ValueError, match="Could not determine listing URL"):
+			parse_listing_page(page_html=html)
+
+	def test_raises_on_missing_price(self) -> None:
+		"""Raises ValueError when no price can be extracted."""
+		html = """
+		<html><head>
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123" />
+		</head><body>No price here</body></html>
+		"""
+		with pytest.raises(ValueError, match="Could not extract total price"):
+			parse_listing_page(page_html=html)
