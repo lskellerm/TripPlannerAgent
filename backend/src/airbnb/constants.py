@@ -137,6 +137,8 @@ KNOWN_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Monumento De La Revolución": "Colonia Tabacalera",
 	"Tabacalera": "Colonia Tabacalera",
 	"Reforma": "Colonia Cuauhtémoc",
+	"Cuauhtémoc": "Colonia Cuauhtémoc",
+	"Cauuhtemoc": "Colonia Cuauhtémoc",
 	"Avenida Reforma": "Colonia Cuauhtémoc",
 	"Avenida De La Reforma": "Colonia Cuauhtémoc",
 	"The Angel of Independence": "Colonia Juárez",
