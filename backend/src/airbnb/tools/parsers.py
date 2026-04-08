@@ -2,7 +2,15 @@
 
 Uses BeautifulSoup with the ``lxml`` parser to extract structured listing
 data from Airbnb pages.  Designed to work with both Playwright-rendered
-live HTML (Playwright MCP via Agent Navigation) and cached HTML files in ``discovery/html/``.
+live HTML (saved to disk via ``browser_evaluate`` and the file-based bridge)
+and cached HTML files in ``discovery/html/``.
+
+Each public parser accepts two mutually exclusive input modes:
+
+- ``html_file`` — filename (relative to ``PLAYWRIGHT_OUTPUT_DIR``) or absolute
+  path.  The parser reads the file from disk, keeping large HTML payloads
+  out of the LLM's context window.
+- ``page_html`` — raw HTML string, for unit tests and cached-mode usage.
 
 Airbnb pages are heavily client-side rendered.  These parsers target
 the embedded JSON data within ``<script>`` tags (structured data and
@@ -11,6 +19,7 @@ with DOM-based fallbacks where useful.
 """
 
 import re
+from pathlib import Path
 from re import Match, Pattern
 from typing import Union
 
@@ -18,30 +27,136 @@ import orjson
 from bs4 import BeautifulSoup, Tag
 from bs4.element import AttributeValueList, NavigableString
 from orjson import JSONDecodeError
+from pydantic_ai.exceptions import ModelRetry
 
-from src.airbnb.schemas import AirbnbListing, CostBreakdown
-
-# ── Constants ──
-
-AIRBNB_ROOMS_PREFIX = "https://www.airbnb.com/rooms/"
-ROOM_ID_PATTERN: Pattern[str] = re.compile(r"/rooms/(\d+)")
-PRICE_PATTERN: Pattern[str] = re.compile(r"\$[\d,]+(?:\.\d{2})?")
-RATING_PATTERN: Pattern[str] = re.compile(r"(\d+\.\d+)\s*(?:★|stars?)?", re.IGNORECASE)
-REVIEW_COUNT_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*reviews?", re.IGNORECASE)
-BEDS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bed(?:room)?s?", re.IGNORECASE)
-BATHS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bath(?:room)?s?", re.IGNORECASE)
-NIGHTLY_RATE_PATTERN: Pattern[str] = re.compile(
-	r"\$(\d[\d,]*)\s*(?:per\s*)?night", re.IGNORECASE
+from src.airbnb.constants import (
+	BATHS_PATTERN,
+	BEDROOMS_PATTERN,
+	BEDS_ONLY_PATTERN,
+	DISCOUNTED_PRICE_PATTERN,
+	FOR_N_NIGHTS_PATTERN,
+	H1_TITLE_LOCATION_PATTERN,
+	MAX_CARD_TEXT_LENGTH,
+	MAX_NEIGHBORHOOD_LENGTH,
+	MIN_NEIGHBORHOOD_LENGTH,
+	NEIGHBORHOOD_TESTID_PATTERN,
+	NIGHTLY_RATE_PATTERN,
+	OG_TITLE_LOCATION_PATTERN,
+	OG_TITLE_ROOM_PATTERN,
+	PRICE_PATTERN,
+	RATE_OPTION_TOTAL_PATTERN,
+	RATING_PATTERN,
+	REVIEW_COUNT_PATTERN,
+	ROOM_ID_PATTERN,
+	TOTAL_PRICE_PATTERN,
 )
-# data-testid values that identify the card subtitle/location element on search results
-NEIGHBORHOOD_TESTID_PATTERN: Pattern[str] = re.compile(
-	r"^(subtitle|listing-card-title)$", re.IGNORECASE
-)
-# Plausible length bounds for a neighbourhood name extracted from card text
-MIN_NEIGHBORHOOD_LENGTH: int = 3
-MAX_NEIGHBORHOOD_LENGTH: int = 60
-# Maximum length of a card child's text to consider for neighbourhood extraction
-MAX_CARD_TEXT_LENGTH: int = 100
+from src.airbnb.schemas import AirbnbListing, CostBreakdown, ListingWithCost
+from src.core.config import settings
+
+
+def _unwrap_json_string(content: str) -> str:
+	"""Unwrap HTML content that was JSON-stringified by ``browser_evaluate``.
+
+	Playwright MCP's ``browser_evaluate`` serialises the return value of
+	the evaluated JavaScript expression as a JSON string before writing
+	it to disk.
+
+	When the expression is
+	``() => document.documentElement.outerHTML``, the result is the full
+	HTML wrapped in double quotes with all internal quotes escaped
+	(``\\\"``).
+
+
+	This helper detects the wrapping and decodes it.
+
+	Args:
+		content: Raw file content that may or may not be JSON-wrapped.
+
+	Returns:
+		The unwrapped HTML string if JSON-wrapped, or the original
+		content unchanged.
+	"""
+	if content.startswith('"') and content.endswith('"'):
+		try:
+			decoded: Union[str, object] = orjson.loads(content)
+			if isinstance(decoded, str):
+				return decoded
+		except (JSONDecodeError, TypeError):
+			pass
+	return content
+
+
+def _resolve_html(
+	html_file: Union[str, None] = None,
+	page_html: Union[str, None] = None,
+) -> str:
+	"""Resolve HTML content from a file path or a raw string.
+
+	Exactly one of ``html_file`` or ``page_html`` must be provided.
+
+	When ``html_file`` is given:
+	- If it is an absolute path, read that file directly.
+	- Otherwise, treat it as relative to ``settings.PLAYWRIGHT_OUTPUT_DIR``.
+
+	Files produced by Playwright MCP's ``browser_evaluate`` are
+	JSON-stringified (wrapped in ``"..."`` with escaped internal
+	quotes).  This function transparently unwraps them.
+
+	Args:
+		html_file: Filename (relative to output dir) or absolute path to
+			an HTML file saved by ``browser_evaluate``.
+		page_html: Raw HTML string (used in tests or cached mode).
+
+	Returns:
+		The HTML content as a string.
+
+	Raises:
+		ValueError: If neither or both arguments are provided.
+		ModelRetry: If ``html_file`` points to a non-existent path.
+			Raised as ``ModelRetry`` instead of ``FileNotFoundError`` so
+			the agent receives the error as feedback and can retry with
+			the correct filename.
+	"""
+	if (html_file is None) == (page_html is None):
+		raise ValueError(
+			"Exactly one of 'html_file' or 'page_html' must be provided, not both or neither."
+		)
+
+	if page_html is not None:
+		return page_html
+
+	# html_file is guaranteed non-None after the mutual-exclusivity check above.
+	assert html_file is not None
+	path = Path(html_file)
+	if path.is_absolute():
+		if not path.is_file():
+			raise ModelRetry(
+				f"HTML file not found: {path}. "
+				f"Use the exact filename you passed to browser_evaluate's "
+				f"'filename' parameter (e.g. 'listing_<room_id>.html')."
+			)
+		return _unwrap_json_string(path.read_text(encoding="utf-8"))
+
+	# Relative path: check PLAYWRIGHT_OUTPUT_DIR first, then CWD.
+	# Playwright MCP's ``browser_evaluate`` saves result files to the
+	# process working directory (CWD), NOT to ``--output-dir``.  Snapshots
+	# and screenshots go to ``--output-dir``.  We check both locations so
+	# parsers work regardless of which tool produced the file.
+	candidates: list[Path] = [
+		Path(settings.PLAYWRIGHT_OUTPUT_DIR) / path,
+		Path.cwd() / path,
+	]
+	for candidate in candidates:
+		if candidate.is_file():
+			return _unwrap_json_string(candidate.read_text(encoding="utf-8"))
+
+	searched: str = ", ".join(str(c) for c in candidates)
+	raise ModelRetry(
+		f"HTML file not found: {html_file} (searched: {searched}). "
+		f"Use the exact filename you passed to browser_evaluate's "
+		f"'filename' parameter (e.g. 'listing_<room_id>.html'). "
+		f"Do NOT use filenames from snapshot paths or console log entries."
+	)
 
 
 def _parse_price(text: str) -> Union[float, None]:
@@ -140,22 +255,31 @@ def _extract_room_id(url: str) -> Union[str, None]:
 	return match.group(1) if match else None
 
 
-def parse_search_results(page_html: str) -> list[AirbnbListing]:
+def parse_search_results(
+	html_file: Union[str, None] = None,
+	page_html: Union[str, None] = None,
+) -> list[AirbnbListing]:
 	"""Extract partial listing data from an Airbnb search results page.
 
 	Parses search result cards to extract title, price preview, rating,
 	URL, and neighbourhood.  Uses embedded JSON data as the primary
 	source and falls back to DOM-based extraction for listing links.
 
+	Accepts either a file path (for the file-based HTML bridge with
+	Playwright MCP) or a raw HTML string (for tests / cached mode).
+
 	Args:
-		page_html: Full HTML content of an Airbnb search results page.
+		html_file: Filename relative to ``PLAYWRIGHT_OUTPUT_DIR`` or an
+			absolute path to a saved HTML file.
+		page_html: Raw HTML string of an Airbnb search results page.
 
 	Returns:
 		A list of partially populated ``AirbnbListing`` objects.  Fields
 		like ``num_bedrooms`` or ``total_cost`` may be ``None`` since
 		they require visiting the individual listing page.
 	"""
-	soup = BeautifulSoup(page_html, "lxml")
+	html_content: str = _resolve_html(html_file=html_file, page_html=page_html)
+	soup = BeautifulSoup(html_content, "lxml")
 	listings: list[AirbnbListing] = []
 	seen_room_ids: set[str] = set()
 
@@ -207,28 +331,51 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 
 		# Extract price, rating, reviews from the container text
 		container_text: str = container.get_text(" ", strip=True) if container else ""
+		total_cost: Union[float, None] = None
 		nightly_rate: Union[float, None] = None
 		rating: Union[float, None] = None
 		num_reviews: Union[int, None] = None
 		neighborhood: Union[str, None] = None
 
+		# Strategy 1: look for "$X per night" or "$X night" (explicit nightly rate)
 		nightly_match: Union[Match[str], None] = NIGHTLY_RATE_PATTERN.search(
 			container_text
 		)
 		if nightly_match:
 			nightly_rate = float(nightly_match.group(1).replace(",", ""))
 
+		# Strategy 2: Airbnb search cards often show the total stay price
+		# as "$X Show price breakdown for N nights" or "$X for N nights".
+		# Extract total_cost and compute nightly_rate from it.
+		if nightly_rate is None:
+			total_match: Union[Match[str], None] = TOTAL_PRICE_PATTERN.search(
+				container_text
+			)
+			if total_match:
+				total_cost = float(total_match.group(1).replace(",", ""))
+				nights: int = int(total_match.group(2))
+				if nights > 0:
+					nightly_rate: float = round(total_cost / nights, 2)
+
+		# Strategy 3: just grab the first dollar amount as a price hint
+		if nightly_rate is None and total_cost is None:
+			price_match: Union[Match[str], None] = PRICE_PATTERN.search(container_text)
+			if price_match:
+				total_cost = float(
+					price_match.group().replace("$", "").replace(",", "")
+				)
+
 		rating_match: Union[Match[str], None] = RATING_PATTERN.search(container_text)
 		if rating_match:
-			parsed_rating = float(rating_match.group(1))
+			parsed_rating: float = float(rating_match.group(1))
 			if 0.0 <= parsed_rating <= 5.0:
-				rating = parsed_rating
+				rating: float = parsed_rating
 
 		review_match: Union[Match[str], None] = REVIEW_COUNT_PATTERN.search(
 			container_text
 		)
 		if review_match:
-			num_reviews = int(review_match.group(1))
+			num_reviews: int = int(review_match.group(1))
 
 		# Extract neighborhood from the listing card.
 		# Airbnb cards often show "Neighbourhood · Property type · beds · baths"
@@ -243,7 +390,11 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 				subtitle_text: str = subtitle_el.get_text(strip=True)
 				if "·" in subtitle_text and "$" not in subtitle_text:
 					nb_candidate: str = subtitle_text.split("·", 1)[0].strip()
-					if MIN_NEIGHBORHOOD_LENGTH <= len(nb_candidate) <= MAX_NEIGHBORHOOD_LENGTH:
+					if (
+						MIN_NEIGHBORHOOD_LENGTH
+						<= len(nb_candidate)
+						<= MAX_NEIGHBORHOOD_LENGTH
+					):
 						neighborhood = nb_candidate
 
 			# Strategy 2: scan card children for middle-dot separator text
@@ -255,9 +406,11 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 						and "$" not in child_text
 						and len(child_text) < MAX_CARD_TEXT_LENGTH
 					):
-						nb_candidate = child_text.split("·", 1)[0].strip()
+						nb_candidate: str = child_text.split("·", 1)[0].strip()
 						if (
-							MIN_NEIGHBORHOOD_LENGTH <= len(nb_candidate) <= MAX_NEIGHBORHOOD_LENGTH
+							MIN_NEIGHBORHOOD_LENGTH
+							<= len(nb_candidate)
+							<= MAX_NEIGHBORHOOD_LENGTH
 							and not nb_candidate[0].isdigit()
 						):
 							neighborhood = nb_candidate
@@ -270,11 +423,64 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 			if img:
 				image_url = str(img["src"])
 
+		# Extract beds/bedrooms from listing-card-subtitle elements.
+		# Airbnb search cards present room details in a subtitle element
+		# whose text reads e.g. "2 bedrooms 2 bedrooms 2 beds , · 2 beds".
+		# NOTE: The listing *name* subtitle can also contain "bed" (e.g.
+		# "Brand New 2-Bedroom ...") but won't match the regex patterns.
+		# Only break when at least one regex actually matched.
+		num_bedrooms: Union[int, None] = None
+		num_beds: Union[int, None] = None
+		if container:
+			for subtitle in container.find_all(
+				attrs={"data-testid": "listing-card-subtitle"}
+			):
+				sub_text: str = subtitle.get_text(" ", strip=True)
+				if not sub_text:
+					continue
+				# Only consider subtitles that mention bed/bedroom
+				if "bed" not in sub_text.lower():
+					continue
+				br_match: Union[Match[str], None] = BEDROOMS_PATTERN.search(sub_text)
+				if br_match:
+					num_bedrooms = int(br_match.group(1))
+				bd_match: Union[Match[str], None] = BEDS_ONLY_PATTERN.search(sub_text)
+				if bd_match:
+					num_beds = int(bd_match.group(1))
+				if br_match or bd_match:
+					break  # only stop after a successful regex match
+
+		# Extract location from listing-card-title element.
+		# Airbnb cards have a data-testid="listing-card-title" element with
+		# text like "Apartment in Mexico City" which provides the property
+		# type and city (useful as a neighbourhood fallback).
+		if neighborhood is None and container:
+			title_el: Union[Tag, None] = container.find(
+				attrs={"data-testid": "listing-card-title"}
+			)
+			if title_el:
+				title_text: str = title_el.get_text(strip=True)
+				# Extract location after "in " prefix (e.g. "Apartment in Mexico City")
+				in_match: Union[Match[str], None] = re.search(
+					r"\bin\s+(.+)", title_text
+				)
+				if in_match:
+					loc_candidate: str = in_match.group(1).strip()
+					if (
+						MIN_NEIGHBORHOOD_LENGTH
+						<= len(loc_candidate)
+						<= MAX_NEIGHBORHOOD_LENGTH
+					):
+						neighborhood: str = loc_candidate
+
 		listings.append(
 			AirbnbListing(
 				url=url,
 				title=title,
+				total_cost=total_cost,
 				nightly_rate=nightly_rate,
+				num_beds=num_beds,
+				num_bedrooms=num_bedrooms,
 				rating=rating,
 				num_reviews=num_reviews,
 				neighborhood=neighborhood,
@@ -285,15 +491,23 @@ def parse_search_results(page_html: str) -> list[AirbnbListing]:
 	return listings
 
 
-def parse_listing_details(page_html: str) -> AirbnbListing:
+def parse_listing_details(
+	html_file: Union[str, None] = None,
+	page_html: Union[str, None] = None,
+) -> AirbnbListing:
 	"""Extract enriched listing data from an individual listing page.
 
 	Parses the listing detail page to extract bedrooms, bathrooms,
 	amenities, rating, reviews, and the full title.  Uses JSON-LD
 	structured data when available and falls back to DOM patterns.
 
+	Accepts either a file path (for the file-based HTML bridge with
+	Playwright MCP) or a raw HTML string (for tests / cached mode).
+
 	Args:
-		page_html: Full HTML content of an Airbnb listing detail page.
+		html_file: Filename relative to ``PLAYWRIGHT_OUTPUT_DIR`` or an
+			absolute path to a saved HTML file.
+		page_html: Raw HTML string of an Airbnb listing detail page.
 
 	Returns:
 		An ``AirbnbListing`` with enriched detail fields.
@@ -301,7 +515,8 @@ def parse_listing_details(page_html: str) -> AirbnbListing:
 	Raises:
 		ValueError: If no listing URL can be determined from the page.
 	"""
-	soup = BeautifulSoup(page_html, "lxml")
+	html_content: str = _resolve_html(html_file=html_file, page_html=page_html)
+	soup = BeautifulSoup(html_content, "lxml")
 
 	# Extract URL from canonical link or og:url meta
 	url: str = ""
@@ -324,17 +539,20 @@ def parse_listing_details(page_html: str) -> AirbnbListing:
 
 	# Extract title
 	title: str = ""
+	h1_text: str = ""
 	og_title: Union[Tag, None] = soup.find("meta", property="og:title")
 	if og_title and og_title.get("content"):
 		title = str(og_title["content"])
+	h1: Union[Tag, None] = soup.find("h1")
+	if h1:
+		h1_text = h1.get_text(strip=True)
 	if not title:
-		h1: Union[Tag, None] = soup.find("h1")
-		if h1:
-			title: str = h1.get_text(strip=True)
-	if not title:
-		title_tag: Union[Tag, None] = soup.find("title")
-		if title_tag:
-			title: str = title_tag.get_text(strip=True)
+		if h1_text:
+			title = h1_text
+		else:
+			title_tag: Union[Tag, None] = soup.find("title")
+			if title_tag:
+				title: str = title_tag.get_text(strip=True)
 
 	# Extract from JSON-LD
 	json_ld: Union[dict, None] = _extract_json_ld(soup)
@@ -357,37 +575,82 @@ def parse_listing_details(page_html: str) -> AirbnbListing:
 		elif isinstance(image_data, list) and image_data:
 			image_url = str(image_data[0])
 
-	# Extract bedroom/bathroom counts from page text
-	page_text: str = soup.get_text(" ", strip=True)
+	# Extract bedroom/bathroom counts from og:title first (most reliable).
+	# Airbnb og:title format:
+	#   "Home in Mexico City · ★4.88 · 1 bedroom · 1 bed · 1 private bath"
 	num_bedrooms: Union[int, None] = None
 	num_bathrooms: Union[int, None] = None
 	num_beds: Union[int, None] = None
 
-	beds_match: Union[Match[str], None] = BEDS_PATTERN.search(page_text)
-	if beds_match:
-		num_bedrooms = int(beds_match.group(1))
-		num_beds: int = num_bedrooms  # default beds = bedrooms until refined
+	if title:
+		for og_match in OG_TITLE_ROOM_PATTERN.finditer(title):
+			if og_match.group(1) and num_bedrooms is None:
+				num_bedrooms = int(og_match.group(1))
+			elif og_match.group(2) and num_beds is None:
+				num_beds = int(og_match.group(2))
+			elif og_match.group(3) and num_bathrooms is None:
+				num_bathrooms = int(og_match.group(3))
 
-	baths_match: Union[Match[str], None] = BATHS_PATTERN.search(page_text)
-	if baths_match:
-		num_bathrooms = int(baths_match.group(1))
+	# Fall back to page text extraction if og:title didn't provide counts
+	page_text: str = soup.get_text(" ", strip=True)
+
+	if num_bedrooms is None:
+		bedrooms_match: Union[Match[str], None] = BEDROOMS_PATTERN.search(page_text)
+		if bedrooms_match:
+			num_bedrooms = int(bedrooms_match.group(1))
+
+	if num_beds is None:
+		beds_match: Union[Match[str], None] = BEDS_ONLY_PATTERN.search(page_text)
+		if beds_match:
+			num_beds = int(beds_match.group(1))
+
+	if num_bathrooms is None:
+		baths_match: Union[Match[str], None] = BATHS_PATTERN.search(page_text)
+		if baths_match:
+			num_bathrooms = int(baths_match.group(1))
 
 	# Extract amenities from the page
 	amenities: Union[list[str], None] = _extract_amenities(soup)
 
-	# Extract neighbourhood from meta description or page text
+	# Extract neighbourhood.
+	# Strategy priority:
+	#   1. H1 host-given title — often contains specific neighbourhood
+	#      (e.g. "Remodelled Apartment in Central Condesa, CDMX")
+	#   2. og:title — reliable but only city-level
+	#      (e.g. "Rental unit in Mexico City · ★5.0 · ...")
+	#   3. meta description — same as H1 text on Airbnb pages
 	neighborhood: Union[str, None] = None
-	meta_desc: Union[Tag, None] = soup.find("meta", attrs={"name": "description"})
-	if meta_desc and meta_desc.get("content"):
-		desc = str(meta_desc["content"])
-		# Look for neighbourhood-like patterns
-		for pattern in [
-			re.compile(r"in\s+([A-Z][a-zA-Z\s/]+(?:,\s*[A-Z][a-zA-Z\s]+)*)"),
-		]:
-			match: Union[Match[str], None] = pattern.search(desc)
-			if match:
-				neighborhood: str = match.group(1).strip()
-				break
+
+	# Strategy 1: H1 title — specific neighbourhood from the host
+	if h1_text:
+		h1_loc_match: Union[Match[str], None] = H1_TITLE_LOCATION_PATTERN.search(
+			h1_text
+		)
+		if h1_loc_match:
+			candidate: str = h1_loc_match.group(1).strip()
+			if MIN_NEIGHBORHOOD_LENGTH <= len(candidate) <= MAX_NEIGHBORHOOD_LENGTH:
+				neighborhood = candidate
+
+	# Strategy 2: og:title for city-level fallback
+	if neighborhood is None and title:
+		loc_match: Union[Match[str], None] = OG_TITLE_LOCATION_PATTERN.search(title)
+		if loc_match:
+			candidate = loc_match.group(1).strip()
+			if MIN_NEIGHBORHOOD_LENGTH <= len(candidate) <= MAX_NEIGHBORHOOD_LENGTH:
+				neighborhood = candidate
+
+	# Strategy 3: meta description
+	if neighborhood is None:
+		meta_desc: Union[Tag, None] = soup.find("meta", attrs={"name": "description"})
+		if meta_desc and meta_desc.get("content"):
+			desc = str(meta_desc["content"])
+			for pattern in [
+				re.compile(r"in\s+([A-Z][a-zA-Z\s/]+(?:,\s*[A-Z][a-zA-Z\s]+)*)"),
+			]:
+				match: Union[Match[str], None] = pattern.search(desc)
+				if match:
+					neighborhood = match.group(1).strip()
+					break
 
 	# Fall back to DOM for rating/reviews if JSON-LD didn't provide them
 	if rating is None:
@@ -426,31 +689,70 @@ def parse_listing_details(page_html: str) -> AirbnbListing:
 	)
 
 
-def parse_booking_price(page_html: str) -> CostBreakdown:
-	"""Extract booking price breakdown from an Airbnb listing page.
+def parse_booking_price(
+	html_file: Union[str, None] = None,
+	page_html: Union[str, None] = None,
+	num_people: int = 1,
+) -> CostBreakdown:
+	"""Extract booking price breakdown from an Airbnb booking/checkout page.
 
-	Parses the price breakdown shown after clicking Reserve, extracting
+	Parses the price breakdown from the booking page ("Request to book")
+	that appears after clicking Reserve on a listing page.  Extracts
 	total cost, nightly rate, and individual fees (cleaning, service,
 	occupancy taxes, etc.).
 
+	The primary extraction strategy uses the ``data-testid="pd-value-TOTAL"``
+	attribute on the checkout page's total price element.  Falls back to
+	regex-based text extraction for listing pages or alternative HTML
+	structures.
+
+	Accepts either a file path (for the file-based HTML bridge with
+	Playwright MCP) or a raw HTML string (for tests / cached mode).
+
 	Args:
-		page_html: Full HTML content of an Airbnb listing/booking page
-			that includes the price breakdown section.
+		html_file: Filename relative to ``PLAYWRIGHT_OUTPUT_DIR`` or an
+			absolute path to a saved HTML file.
+		page_html: Raw HTML string of an Airbnb booking/checkout page
+			or listing page that includes pricing information.
+		num_people: Number of people splitting the cost.  The HTML does
+			not contain this information so the caller (agent) must
+			provide it based on the user's trip request.  Defaults to
+			``1`` for backward compatibility.
 
 	Returns:
 		A ``CostBreakdown`` with extracted cost data. ``num_nights`` is
 		parsed from the page when available and otherwise defaults to ``1``.
-		``num_people`` is not derived by this parser and therefore defaults
-		to ``1`` in the returned model.
 
 	Raises:
 		ValueError: If no total price can be extracted from the page.
+		ValueError: If ``num_people`` is less than ``1``.
 	"""
-	soup = BeautifulSoup(page_html, "lxml")
+	if num_people < 1:
+		raise ValueError("num_people must be at least 1.")
+
+	html_content: str = _resolve_html(html_file=html_file, page_html=page_html)
+	soup = BeautifulSoup(html_content, "lxml")
 	page_text: str = soup.get_text(" ", strip=True)
 
+	# ── Primary: structured data-testid extraction (booking page) ──
+	# The Airbnb checkout/booking page uses `data-testid="pd-value-TOTAL"`
+	# on the total price element.  This is the most reliable extraction
+	# method when the HTML comes from the booking page.
+	total_from_testid: Union[float, None] = None
+	total_el: Union[Tag, None] = soup.find(  # type: ignore[assignment]
+		attrs={"data-testid": "pd-value-TOTAL"}
+	)
+	if total_el is not None:
+		_testid_price_match: Union[Match[str], None] = PRICE_PATTERN.search(
+			total_el.get_text()
+		)
+		if _testid_price_match:
+			total_from_testid = float(
+				_testid_price_match.group(0).replace("$", "").replace(",", "")
+			)
+
 	# Extract total cost — look for "Total" section
-	total_cost: Union[float, None] = None
+	total_cost: Union[float, None] = total_from_testid
 	fees: dict[str, float] = {}
 	nightly_rate: Union[float, None] = None
 	num_nights: int = 1
@@ -462,8 +764,58 @@ def parse_booking_price(page_html: str) -> CostBreakdown:
 	)
 	nights_match: Union[Match[str], None] = nights_pattern.search(page_text)
 	if nights_match:
-		nightly_rate: float = float(nights_match.group(1).replace(",", ""))
-		num_nights: int = int(nights_match.group(2))
+		nightly_rate = float(nights_match.group(1).replace(",", ""))
+		num_nights = int(nights_match.group(2))
+
+	# Booking page format: "N nights x $rate" (reversed order)
+	if nightly_rate is None:
+		booking_nights_pattern: Pattern[str] = re.compile(
+			r"(\d+)\s*nights?\s*x\s*\$(\d[\d,]*(?:\.\d{2})?)", re.IGNORECASE
+		)
+		booking_nights_match: Union[Match[str], None] = booking_nights_pattern.search(
+			page_text
+		)
+		if booking_nights_match:
+			num_nights = int(booking_nights_match.group(1))
+			nightly_rate = float(booking_nights_match.group(2).replace(",", ""))
+
+	# Fallback: look for "$X for N nights" format (listing page without
+	# expanded price breakdown — the default view before clicking Reserve).
+	if nightly_rate is None:
+		for_nights_match: Union[Match[str], None] = FOR_N_NIGHTS_PATTERN.search(
+			page_text
+		)
+		if for_nights_match:
+			total_cost = float(for_nights_match.group(1).replace(",", ""))
+			num_nights = int(for_nights_match.group(2))
+			if num_nights > 0:
+				nightly_rate = round(total_cost / num_nights, 2)
+
+	# Try the "$X $Y Show price breakdown for N nights" format where $X is
+	# the strikethrough (original) price and $Y is the discounted price.
+	# This must be checked before TOTAL_PRICE_PATTERN which would capture
+	# the wrong (original) price from the same text.
+	if total_cost is None and nightly_rate is None:
+		discounted_match: Union[Match[str], None] = DISCOUNTED_PRICE_PATTERN.search(
+			page_text
+		)
+		if discounted_match:
+			total_cost = float(discounted_match.group(1).replace(",", ""))
+			num_nights = int(discounted_match.group(2))
+			if num_nights > 0:
+				nightly_rate = round(total_cost / num_nights, 2)
+
+	# Also try the broader TOTAL_PRICE_PATTERN which matches
+	# "$X Show price breakdown for N nights" style text.
+	if total_cost is None and nightly_rate is None:
+		total_price_match: Union[Match[str], None] = TOTAL_PRICE_PATTERN.search(
+			page_text
+		)
+		if total_price_match:
+			total_cost = float(total_price_match.group(1).replace(",", ""))
+			num_nights = int(total_price_match.group(2))
+			if num_nights > 0:
+				nightly_rate = round(total_cost / num_nights, 2)
 
 	# Extract fees from common patterns
 	fee_patterns: dict[str, re.Pattern[str]] = {
@@ -486,11 +838,21 @@ def parse_booking_price(page_html: str) -> CostBreakdown:
 
 	# Extract total — look for "Total" followed by a price
 	total_pattern: Pattern[str] = re.compile(
-		r"total\s*(?:\(USD\)\s*)?\$(\d[\d,]*(?:\.\d{2})?)", re.IGNORECASE
+		r"total\s*(?:(?:\(USD\)|USD)\s*)?\$(\d[\d,]*(?:\.\d{2})?)", re.IGNORECASE
 	)
 	total_match: Union[Match[str], None] = total_pattern.search(page_text)
 	if total_match:
 		total_cost = float(total_match.group(1).replace(",", ""))
+
+	# Fallback: look for rate option format "$X total" (e.g.
+	# "Non-refundable · $960.69 total").  Take the first (cheapest)
+	# rate option found.
+	if total_cost is None:
+		rate_match: Union[Match[str], None] = RATE_OPTION_TOTAL_PATTERN.search(
+			page_text
+		)
+		if rate_match:
+			total_cost = float(rate_match.group(1).replace(",", ""))
 
 	# Fallback: compute total from nightly rate + fees
 	if total_cost is None and nightly_rate is not None:
@@ -498,10 +860,29 @@ def parse_booking_price(page_html: str) -> CostBreakdown:
 		total_cost: float = subtotal + sum(fees.values())
 
 	if total_cost is None:
-		raise ValueError("Could not extract total price from the booking page HTML")
+		# Detect Airbnb "dates not available" state — the booking widget
+		# shows this when the listing has no availability for the chosen
+		# dates.  Provide a specific error message so the agent can skip
+		# the listing rather than retrying.
+		_unavailable_pattern: Pattern[str] = re.compile(
+			r"(?:those\s+)?dates?\s+(?:are\s+)?not\s+available",
+			re.IGNORECASE,
+		)
+		if _unavailable_pattern.search(page_text):
+			raise ValueError(
+				"Listing is not available for the selected dates. "
+				"The booking section shows 'Those dates are not available'. "
+				"Skip this listing and try the next one."
+			)
+		raise ValueError(
+			"Could not extract total price from the booking page HTML. "
+			"Ensure you are parsing the booking/checkout page (after "
+			"clicking Reserve), not the listing page.  The booking page "
+			"should contain the 'Total USD' price breakdown.  Use "
+			"browser_click(element='Reserve') to navigate to the booking "
+			"page, then browser_wait_for(text='Total') before saving."
+		)
 
-	# Default to 1 person / computed nights — caller updates via context
-	num_people: int = 1
 	return CostBreakdown(
 		total_cost=total_cost,
 		num_people=num_people,
@@ -588,3 +969,43 @@ def _safe_int(value: object) -> Union[int, None]:
 		return int(value)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 	except (ValueError, TypeError):
 		return None
+
+
+def parse_listing_page(
+	html_file: Union[str, None] = None,
+	page_html: Union[str, None] = None,
+	num_people: int = 1,
+) -> ListingWithCost:
+	"""Extract listing details AND booking price from a single listing page.
+
+	Combines :func:`parse_listing_details` and :func:`parse_booking_price`
+	into a single tool call, reading the HTML only once.  This halves the
+	number of agent tool calls per listing (from two to one) and ensures
+	both results use the same HTML snapshot.
+
+	Args:
+		html_file: Filename relative to ``PLAYWRIGHT_OUTPUT_DIR`` or an
+			absolute path to a saved HTML file.
+		page_html: Raw HTML string of an Airbnb listing detail page.
+		num_people: Number of people splitting the cost.  Defaults to
+			``1``.
+
+	Returns:
+		A ``ListingWithCost`` containing the enriched listing metadata
+		and the associated cost breakdown.
+
+	Raises:
+		ValueError: If the listing URL cannot be determined or if no
+			total price can be extracted from the page.
+		ValueError: If ``num_people`` is less than ``1``.
+	"""
+	# Resolve HTML once, then pass as raw string to both sub-parsers
+	# to avoid reading the file twice.
+	html_content: str = _resolve_html(html_file=html_file, page_html=page_html)
+
+	listing: AirbnbListing = parse_listing_details(page_html=html_content)
+	cost: CostBreakdown = parse_booking_price(
+		page_html=html_content, num_people=num_people
+	)
+
+	return ListingWithCost(listing=listing, cost_breakdown=cost)

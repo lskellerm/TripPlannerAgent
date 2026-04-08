@@ -220,9 +220,7 @@ def rank_by_category(
 	if rated:
 		best_value: Union[ListingWithCost, None] = min(
 			rated,
-			key=lambda lwc: (
-				lwc.cost_breakdown.cost_per_person / lwc.listing.rating
-			),
+			key=lambda lwc: lwc.cost_breakdown.cost_per_person / lwc.listing.rating,
 		)
 
 	# Best amenities: most amenities
