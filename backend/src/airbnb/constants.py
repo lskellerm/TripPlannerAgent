@@ -8,6 +8,7 @@ __all__: list[str] = [
 	"BATHS_PATTERN",
 	"BEDROOMS_PATTERN",
 	"BEDS_ONLY_PATTERN",
+	"DISCOUNTED_PRICE_PATTERN",
 	"BEDS_PATTERN",
 	"FOR_N_NIGHTS_PATTERN",
 	"H1_TITLE_LOCATION_PATTERN",
@@ -19,6 +20,7 @@ __all__: list[str] = [
 	"OG_TITLE_LOCATION_PATTERN",
 	"OG_TITLE_ROOM_PATTERN",
 	"PRICE_PATTERN",
+	"RATE_OPTION_TOTAL_PATTERN",
 	"RATING_PATTERN",
 	"REVIEW_COUNT_PATTERN",
 	"ROOM_ID_PATTERN",
@@ -46,6 +48,18 @@ FOR_N_NIGHTS_PATTERN: Pattern[str] = re.compile(
 	r"\$(\d[\d,]*)\s+(?:for\s+)(\d+)\s*nights?",
 	re.IGNORECASE,
 )
+# Pattern that matches "$X $Y Show price breakdown for N nights" where $X is the
+# strikethrough (original) price and $Y is the discounted price.  Captures $Y.
+DISCOUNTED_PRICE_PATTERN: Pattern[str] = re.compile(
+	r"\$\d[\d,]*(?:\.\d{2})?\s+\$(\d[\d,]*(?:\.\d{2})?)\s+.*?(?:for|breakdown\s+for)\s+(\d+)\s*night",
+	re.IGNORECASE,
+)
+# Pattern that matches rate option format: "Non-refundable · $X total" or
+# "Refundable · $X total" — the "$X total" where the amount precedes "total".
+RATE_OPTION_TOTAL_PATTERN: Pattern[str] = re.compile(
+	r"\$(\d[\d,]*(?:\.\d{2})?)\s+total",
+	re.IGNORECASE,
+)
 
 # ── Rating / Review Patterns ──
 
@@ -70,7 +84,7 @@ BATHS_PATTERN: Pattern[str] = re.compile(
 NEIGHBORHOOD_TESTID_PATTERN: Pattern[str] = re.compile(
 	r"^(subtitle|listing-card-title)$", re.IGNORECASE
 )
-# Plausible length bounds for a neighbourhood name extracted from card text
+# Plausible length bounds for a neighbourhood n`ame` extracted from card text
 MIN_NEIGHBORHOOD_LENGTH: int = 3
 MAX_NEIGHBORHOOD_LENGTH: int = 60
 # Maximum length of a card child's text to consider for neighbourhood extraction
@@ -101,3 +115,43 @@ OG_TITLE_LOCATION_PATTERN: Pattern[str] = re.compile(r"\bin\s+([^·]+)", re.IGNO
 H1_TITLE_LOCATION_PATTERN: Pattern[str] = re.compile(
 	r"\bin\s+([A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*(?:,\s*[A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*)*)"
 )
+
+# Mapping of known neighbourhood abbreviations and relative location name variants to their canonical forms.
+# This is used to standardize extracted neighbourhood names by replacing known abbreviations (e.g., "Roma Nte")
+# and common variants (e.g., "Revolución") with their full canonical names (e.g., "Roma Norte", "Colonia Tabacalera").
+KNOWN_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
+	"Roma Norte": "Roma Norte",
+	"Roma Nte": "Roma Norte",
+	"Roma-Nte": "Roma Norte",
+	"Roma-North": "Roma Norte",
+	"Roma North": "Roma Norte",
+	"Colima": "Roma Norte",
+	"ColRoma-Sr": "Roma Sur",
+	"Roma-Sur": "Roma Sur",
+	"Roma Sur": "Roma Sur",
+	"Condesa": "Condesa",
+	"Central Condesa": "Condesa",
+	"Roma-Condesa": "Condesa",
+	"Revolution": "Colonia Tabacalera",
+	"Revolución": "Colonia Tabacalera",
+	"Monumento De La Revolución": "Colonia Tabacalera",
+	"Tabacalera": "Colonia Tabacalera",
+	"Reforma": "Colonia Cuauhtémoc",
+	"Avenida Reforma": "Colonia Cuauhtémoc",
+	"Avenida De La Reforma": "Colonia Cuauhtémoc",
+	"The Angel of Independence": "Colonia Juárez",
+	"Ángel De La Independencia": "Colonia Juárez",
+	"Juarez": "Juárez",
+	"Colonia Juárez": "Juárez",
+	"Coyoacan": "Coyoacán",
+	"Coyoacán": "Coyoacán",
+	"Historic Center": "Centro Histórico",
+	"Historic Centre": "Centro Histórico",
+	"Historical Center": "Centro Histórico",
+	"Centro Historico": "Centro Histórico",
+	"Centro Histórico": "Centro Histórico",
+	"Histórico": "Centro Histórico",
+	"Historical": "Centro Histórico",
+	"Downtown": "Centro Histórico",
+	"Centro": "Centro Histórico",
+}
