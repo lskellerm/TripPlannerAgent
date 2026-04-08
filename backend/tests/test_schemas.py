@@ -119,6 +119,72 @@ class TestTripWeek:
 		assert week.required_amenities == []
 		assert week.max_price_per_person is None
 
+	def test_minimal_construction(self) -> None:
+		"""TripWeek with only essential fields infers sensible defaults."""
+		week = TripWeek(
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			num_people=2,
+		)
+		assert week.week_label == "Week 1"
+		assert week.participants == []
+		assert week.min_bedrooms == 1  # ceil(2/2)
+		assert week.min_bathrooms == 1
+		assert week.min_rating == 0.0
+		assert week.required_amenities == []
+		assert week.neighborhood_constraints == []
+		assert week.max_price_per_person is None
+
+	def test_infer_min_bedrooms_from_num_people(self) -> None:
+		"""min_bedrooms is inferred as ceil(num_people / 2) when omitted."""
+		# 1 person → 1 bedroom
+		week1 = TripWeek(
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="CDMX",
+			num_people=1,
+		)
+		assert week1.min_bedrooms == 1
+
+		# 3 people → 2 bedrooms
+		week3 = TripWeek(
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="CDMX",
+			num_people=3,
+		)
+		assert week3.min_bedrooms == 2
+
+		# 4 people → 2 bedrooms
+		week4 = TripWeek(
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="CDMX",
+			num_people=4,
+		)
+		assert week4.min_bedrooms == 2
+
+		# 5 people → 3 bedrooms
+		week5 = TripWeek(
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="CDMX",
+			num_people=5,
+		)
+		assert week5.min_bedrooms == 3
+
+	def test_explicit_min_bedrooms_not_overridden(self) -> None:
+		"""Explicitly passed min_bedrooms is not overridden by inference."""
+		week = TripWeek(
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="CDMX",
+			num_people=4,
+			min_bedrooms=1,  # Explicit: 1, inferred would be 2
+		)
+		assert week.min_bedrooms == 1
+
 	def test_frozen_immutability(self, sample_trip_week: TripWeek) -> None:
 		"""TripWeek is frozen and rejects attribute assignment."""
 		with pytest.raises(ValidationError):
@@ -142,7 +208,7 @@ class TestTripWeek:
 			TripWeek(  # type: ignore[call-arg]  # ty: ignore[missing-argument]
 				week_label="Week 1",
 				check_in=date(2026, 4, 24),
-				# Missing: check_out, location, participants, num_people, etc.
+				# Missing: check_out, location, num_people
 			)
 
 
