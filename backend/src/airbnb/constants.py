@@ -116,10 +116,10 @@ H1_TITLE_LOCATION_PATTERN: Pattern[str] = re.compile(
 	r"\bin\s+([A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*(?:,\s*[A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*)*)"
 )
 
-# Mapping of known neighbourhood abbreviations and relative location name variants to their canonical forms.
+# Mapping of known CDMX neighbourhood abbreviations and relative location name variants to their canonical forms.
 # This is used to standardize extracted neighbourhood names by replacing known abbreviations (e.g., "Roma Nte")
 # and common variants (e.g., "Revolución") with their full canonical names (e.g., "Roma Norte", "Colonia Tabacalera").
-KNOWN_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
+KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Roma Norte": "Roma Norte",
 	"Roma Nte": "Roma Norte",
 	"Roma-Nte": "Roma Norte",
