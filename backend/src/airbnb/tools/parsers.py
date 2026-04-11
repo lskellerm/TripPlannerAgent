@@ -33,9 +33,11 @@ from src.airbnb.constants import (
 	BATHS_PATTERN,
 	BEDROOMS_PATTERN,
 	BEDS_ONLY_PATTERN,
+	CITY_SUFFIXES,
 	DISCOUNTED_PRICE_PATTERN,
 	FOR_N_NIGHTS_PATTERN,
 	H1_TITLE_LOCATION_PATTERN,
+	KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS,
 	MAX_CARD_TEXT_LENGTH,
 	MAX_NEIGHBORHOOD_LENGTH,
 	MIN_NEIGHBORHOOD_LENGTH,
@@ -171,6 +173,71 @@ def _parse_price(text: str) -> Union[float, None]:
 	match: Union[Match[str], None] = PRICE_PATTERN.search(text)
 	if match:
 		return float(match.group().replace("$", "").replace(",", ""))
+	return None
+
+
+# ── Neighbourhood Normalisation ──
+
+# Pre-built case-insensitive lookup: lowercase key → canonical name.
+_CDMX_LOWER_MAP: dict[str, str] = {
+	k.lower(): v for k, v in KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS.items()
+}
+
+# Pre-compiled word-boundary patterns for known neighbourhood names,
+# sorted longest-first so the most specific match wins.
+_CDMX_SCAN_PATTERNS: list[tuple[Pattern[str], str]] = sorted(
+	[
+		(re.compile(rf"\b{re.escape(key)}\b", re.IGNORECASE), canonical)
+		for key, canonical in KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS.items()
+	],
+	key=lambda t: len(t[0].pattern),
+	reverse=True,
+)
+
+
+def _normalize_neighborhood(candidate: str) -> str:
+	"""Normalise an extracted neighbourhood name via the CDMX mapping.
+
+	Performs a case-insensitive exact lookup first.  If that fails, strips
+	common city-name suffixes (e.g. ", CDMX", " of Mexico City") and tries
+	again.
+
+	Args:
+		candidate: Raw neighbourhood string extracted from the page.
+
+	Returns:
+		The canonical neighbourhood name if found in the mapping,
+		otherwise the original ``candidate`` unchanged.
+	"""
+	lowered: str = candidate.strip().lower()
+	if lowered in _CDMX_LOWER_MAP:
+		return _CDMX_LOWER_MAP[lowered]
+
+	# Try stripping common city-name suffixes.
+	for suffix in CITY_SUFFIXES:
+		if lowered.endswith(suffix.lower()):
+			trimmed: str = lowered[: -len(suffix)].strip()
+			if trimmed in _CDMX_LOWER_MAP:
+				return _CDMX_LOWER_MAP[trimmed]
+
+	return candidate
+
+
+def _scan_for_known_neighborhoods(text: str) -> Union[str, None]:
+	"""Scan free text for any known CDMX neighbourhood name.
+
+	Uses pre-compiled word-boundary regex patterns, checked longest-first
+	so that ``"Historic Center"`` is matched before ``"Centro"``.
+
+	Args:
+		text: Arbitrary text to scan (e.g. an H1 title or listing name).
+
+	Returns:
+		The canonical neighbourhood name if a match is found, or ``None``.
+	"""
+	for pattern, canonical in _CDMX_SCAN_PATTERNS:
+		if pattern.search(text):
+			return canonical
 	return None
 
 
@@ -526,6 +593,15 @@ def parse_search_results(
 					):
 						neighborhood: str = loc_candidate
 
+		# Strategy 4: Keyword scan of the host-given title for known
+		# neighbourhood names (e.g. "Heart Condesa" → "Condesa").
+		if neighborhood is None and title:
+			neighborhood = _scan_for_known_neighborhoods(title)
+
+		# Normalise the final neighbourhood through the CDMX mapping.
+		if neighborhood is not None:
+			neighborhood = _normalize_neighborhood(neighborhood)
+
 		listings.append(
 			AirbnbListing(
 				url=url,
@@ -663,36 +739,44 @@ def parse_listing_details(
 			num_bathrooms = int(baths_match.group(1))
 
 	# Extract amenities from the page
+	# TODO: Right now this does not work at ALL. So currently, parsing a listing page will return None for amenities.
+	# We need to find a new strategy to reliably extract amenities from the listing page.
 	amenities: Union[list[str], None] = _extract_amenities(soup)
 
 	# Extract neighbourhood.
 	# Strategy priority:
-	#   1. H1 host-given title — often contains specific neighbourhood
-	#      (e.g. "Remodelled Apartment in Central Condesa, CDMX")
-	#   2. og:title — reliable but only city-level
+	#   1. Known-neighbourhood keyword scan on H1 text — catches names
+	#      embedded anywhere in the host-given title regardless of grammar
+	#   2. H1 regex pattern — structural "in/at/near {Location}" extraction
+	#   3. og:title — reliable but usually only city-level
 	#      (e.g. "Rental unit in Mexico City · ★5.0 · ...")
-	#   3. meta description — same as H1 text on Airbnb pages
+	#   4. meta description — same pattern as H1 text on Airbnb pages
+	# All results are normalised through the CDMX abbreviation mapping.
 	neighborhood: Union[str, None] = None
 
-	# Strategy 1: H1 title — specific neighbourhood from the host
+	# Strategy 1: Keyword scan H1 for known neighbourhoods
 	if h1_text:
+		neighborhood = _scan_for_known_neighborhoods(h1_text)
+
+	# Strategy 2: H1 regex — structural "in/at/near {Location}" extraction
+	if neighborhood is None and h1_text:
 		h1_loc_match: Union[Match[str], None] = H1_TITLE_LOCATION_PATTERN.search(
 			h1_text
 		)
 		if h1_loc_match:
 			candidate: str = h1_loc_match.group(1).strip()
 			if MIN_NEIGHBORHOOD_LENGTH <= len(candidate) <= MAX_NEIGHBORHOOD_LENGTH:
-				neighborhood = candidate
+				neighborhood = _normalize_neighborhood(candidate)
 
-	# Strategy 2: og:title for city-level fallback
+	# Strategy 3: og:title for city-level fallback
 	if neighborhood is None and title:
 		loc_match: Union[Match[str], None] = OG_TITLE_LOCATION_PATTERN.search(title)
 		if loc_match:
 			candidate = loc_match.group(1).strip()
 			if MIN_NEIGHBORHOOD_LENGTH <= len(candidate) <= MAX_NEIGHBORHOOD_LENGTH:
-				neighborhood = candidate
+				neighborhood = _normalize_neighborhood(candidate)
 
-	# Strategy 3: meta description
+	# Strategy 4: meta description
 	if neighborhood is None:
 		meta_desc: Union[Tag, None] = soup.find("meta", attrs={"name": "description"})
 		if meta_desc and meta_desc.get("content"):
@@ -702,7 +786,7 @@ def parse_listing_details(
 			]:
 				match: Union[Match[str], None] = pattern.search(desc)
 				if match:
-					neighborhood = match.group(1).strip()
+					neighborhood = _normalize_neighborhood(match.group(1).strip())
 					break
 
 	# Fall back to DOM for rating/reviews if JSON-LD didn't provide them
@@ -719,6 +803,8 @@ def parse_listing_details(
 			num_reviews: int = int(review_match.group(1))
 
 	# Extract nightly rate from page
+	# TODO: This is currently not working, and so parse_listing_details will return None for nightly_rate.
+	# We need to find a new strategy to reliably extract the nightly rate from the listing page.
 	nightly_rate: Union[float, None] = None
 	nightly_match: Union[Match[str], None] = NIGHTLY_RATE_PATTERN.search(page_text)
 	if nightly_match:

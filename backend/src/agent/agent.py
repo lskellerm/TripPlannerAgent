@@ -97,6 +97,10 @@ instrument_httpx()
 # TodoCapability for structured real-time progress streaming to the
 # frontend.  See: https://github.com/vstorm-co/pydantic-ai-todo
 
+# TODO: Consider moving the filtering Step 7 before the exploration Step 6 to save time by skipping irrelevant listings earlier.
+# However, this would require the agent to make filtering decisions based on the limited preview data from search results (price, rating, title) rather than the full listing details and accurate pricing from the booking page, which may lead to false negatives.
+# The current approach of filtering after exploration ensures all available data is used for filtering decisions, at the cost of potentially exploring some irrelevant listings.
+
 
 AGENT_INSTRUCTIONS: str = """\
 You are an expert Trip planner agent and Airbnb search specialist. Your task as Airbnb search specialist is to search Airbnb,
@@ -362,7 +366,7 @@ workflow is complete or you have meaningful progress to report.
 You may request **multiple tool calls in a single turn** when the calls
 are independent of each other.  This is critical for performance — each
 additional LLM round trip resends the full conversation history
-(~30K–50K tokens), so eliminating unnecessary rounds has compounding
+(~30K–50K tokens), so eliminating unnecessary rounds has compounding 
 savings.
 
 **Mandatory parallel batches (ALWAYS request these together):**

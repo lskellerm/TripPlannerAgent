@@ -8,10 +8,12 @@ __all__: list[str] = [
 	"BATHS_PATTERN",
 	"BEDROOMS_PATTERN",
 	"BEDS_ONLY_PATTERN",
+	"CITY_SUFFIXES",
 	"DISCOUNTED_PRICE_PATTERN",
 	"BEDS_PATTERN",
 	"FOR_N_NIGHTS_PATTERN",
 	"H1_TITLE_LOCATION_PATTERN",
+	"KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS",
 	"MAX_CARD_TEXT_LENGTH",
 	"MAX_NEIGHBORHOOD_LENGTH",
 	"MIN_NEIGHBORHOOD_LENGTH",
@@ -104,16 +106,22 @@ OG_TITLE_ROOM_PATTERN: Pattern[str] = re.compile(
 OG_TITLE_LOCATION_PATTERN: Pattern[str] = re.compile(r"\bin\s+([^·]+)", re.IGNORECASE)
 
 # Extracts neighbourhood from a host-given listing title (H1 / <title>).
-# Matches "in {Location}" where Location starts with a capital letter and
-# consists of capitalised words separated by spaces, hyphens, or slashes,
-# optionally followed by a comma + another capitalised segment.
-# Rejects candidates starting with articles/prepositions ("a", "the").
+# Matches "in/at/near {Location}" (case-insensitive preposition) where
+# Location starts with a capital letter and consists of capitalised words
+# separated by spaces, hyphens, or slashes, optionally followed by a
+# comma + another capitalised segment.  An optional article (the, a, an,
+# el, la) between the preposition and the location is consumed but not
+# captured.
+# Rejects candidates starting with lowercase ("a picturesque", "the center").
 # Examples:
 #   "Remodelled Apartment in Central Condesa, CDMX" → "Central Condesa, CDMX"
 #   "Apartment in Roma-Condesa, very conveniently located." → "Roma-Condesa"
 #   "Well-equipped house in a picturesque neighborhood" → no match
+#   "Magnificent apartment in the Historic Center" → "Historic Center"
+#   "Cozy flat w/great views at La Roma" → "La Roma"
+#   "Apartment near the Angel of Independence" → "Angel of Independence"
 H1_TITLE_LOCATION_PATTERN: Pattern[str] = re.compile(
-	r"\bin\s+([A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*(?:,\s*[A-Z][A-Za-z]+(?:[\s/-][A-Za-z]+)*)*)"
+	r"\b(?i:in|at|near)\s+(?:(?i:the|a|an|el|la)\s+)?([A-Z][A-Za-z\u00C0-\u00FF]+(?:[\s/-][A-Za-z\u00C0-\u00FF]+)*(?:,\s*[A-Z][A-Za-z\u00C0-\u00FF]+(?:[\s/-][A-Za-z\u00C0-\u00FF]+)*)*)"
 )
 
 # Mapping of known CDMX neighbourhood abbreviations and relative location name variants to their canonical forms.
@@ -125,6 +133,7 @@ KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Roma-Nte": "Roma Norte",
 	"Roma-North": "Roma Norte",
 	"Roma North": "Roma Norte",
+	"La Roma": "Roma Norte",
 	"Colima": "Roma Norte",
 	"ColRoma-Sr": "Roma Sur",
 	"Roma-Sur": "Roma Sur",
@@ -138,10 +147,12 @@ KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Tabacalera": "Colonia Tabacalera",
 	"Reforma": "Colonia Cuauhtémoc",
 	"Cuauhtémoc": "Colonia Cuauhtémoc",
+	"Cuauhtemoc": "Colonia Cuauhtémoc",
 	"Cauuhtemoc": "Colonia Cuauhtémoc",
 	"Avenida Reforma": "Colonia Cuauhtémoc",
 	"Avenida De La Reforma": "Colonia Cuauhtémoc",
 	"The Angel of Independence": "Colonia Juárez",
+	"Angel of Independence": "Colonia Juárez",
 	"Ángel De La Independencia": "Colonia Juárez",
 	"Juarez": "Juárez",
 	"Colonia Juárez": "Juárez",
@@ -156,4 +167,19 @@ KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Historical": "Centro Histórico",
 	"Downtown": "Centro Histórico",
 	"Centro": "Centro Histórico",
+	"Narvarte": "Narvarte",
+	"San Antonio Abad": "San Antonio Abad",
+	"Colonia Juarez": "Juárez",
 }
+
+# Common city-name suffixes to strip from extracted neighbourhood candidates
+# before looking up in a neighbourhood mapping.  Ordered longest-first so that
+# the most specific suffix is tried before shorter overlapping ones.
+CITY_SUFFIXES: list[str] = [
+	" de la Ciudad de México",
+	" of Mexico City",
+	", Mexico City",
+	" de México",
+	", CDMX",
+	", México",
+]

@@ -20,6 +20,8 @@ from src.airbnb.tools.analysis import (
 	rank_by_category,
 )
 from src.airbnb.tools.parsers import (
+	_normalize_neighborhood,
+	_scan_for_known_neighborhoods,
 	_unwrap_json_string,
 	parse_booking_price,
 	parse_listing_details,
@@ -461,6 +463,44 @@ class TestParseSearchResults:
 		listings: list[AirbnbListing] = parse_search_results(page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood is None
+
+	def test_keyword_scan_finds_neighborhood_in_host_title(self) -> None:
+		"""When no subtitle/card-title provides a neighbourhood, keyword scan on the
+		host-given listing name finds known CDMX names."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/77777">
+				<div>
+					<h2>Beautiful, Cozy, Heart Condesa</h2>
+					<span>$120 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 1
+		assert listings[0].neighborhood == "Condesa"
+
+	def test_normalizes_abbreviation_from_subtitle(self) -> None:
+		"""Neighbourhood abbreviation in subtitle is normalised via CDMX map."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/88888">
+				<div>
+					<h2>Great Apartment</h2>
+					<span>Roma Nte · Entire rental unit</span>
+					<span>$100 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		assert len(listings) == 1
+		assert listings[0].neighborhood == "Roma Norte"
 
 	def test_extracts_total_cost_and_nightly_from_stay_price(self) -> None:
 		"""Parser extracts total cost and computes nightly rate from 'N nights' text."""
@@ -1269,7 +1309,7 @@ class TestParseListingDetailsNeighborhood:
 	"""Verify neighbourhood extraction — H1 title, og:title, meta description."""
 
 	def test_h1_extracts_specific_neighborhood(self) -> None:
-		"""H1 'Remodelled Apartment in Central Condesa, CDMX' yields Central Condesa, CDMX."""
+		"""H1 'Remodelled Apartment in Central Condesa, CDMX' yields Condesa (normalised)."""
 		html = """
 		<html><head>
 		<meta property="og:title" content="Rental unit in Mexico City · ★4.96 · 2 bedrooms · 2 beds · 2 baths" />
@@ -1280,10 +1320,10 @@ class TestParseListingDetailsNeighborhood:
 		</body></html>
 		"""
 		listing: AirbnbListing = parse_listing_details(page_html=html)
-		assert listing.neighborhood == "Central Condesa, CDMX"
+		assert listing.neighborhood == "Condesa"
 
 	def test_h1_extracts_hyphenated_neighborhood(self) -> None:
-		"""H1 'Apartment in Roma-Condesa, very conveniently located.' yields Roma-Condesa."""
+		"""H1 'Apartment in Roma-Condesa ...' yields Condesa (normalised via CDMX map)."""
 		html = """
 		<html><head>
 		<meta property="og:title" content="Rental unit in Mexico City · ★5.0 · 2 bedrooms · 2 beds · 1 bath" />
@@ -1294,7 +1334,7 @@ class TestParseListingDetailsNeighborhood:
 		</body></html>
 		"""
 		listing: AirbnbListing = parse_listing_details(page_html=html)
-		assert listing.neighborhood == "Roma-Condesa"
+		assert listing.neighborhood == "Condesa"
 
 	def test_h1_rejects_generic_description(self) -> None:
 		"""H1 with 'in a picturesque neighborhood' falls back to og:title city."""
@@ -1349,7 +1389,7 @@ class TestParseListingDetailsNeighborhood:
 		assert listing.neighborhood == "Roma Norte"
 
 	def test_fallback_to_meta_description(self) -> None:
-		"""When og:title has no 'in <Location>', fall back to meta description."""
+		"""When og:title has no 'in <Location>', fall back to meta description (normalised)."""
 		html = """
 		<html><head>
 		<meta property="og:title" content="Amazing Apartment · ★4.5 · 2 bedrooms" />
@@ -1359,7 +1399,7 @@ class TestParseListingDetailsNeighborhood:
 		</head><body></body></html>
 		"""
 		listing: AirbnbListing = parse_listing_details(page_html=html)
-		assert listing.neighborhood == "Condesa, Mexico City"
+		assert listing.neighborhood == "Condesa"
 
 	def test_no_neighborhood_available(self) -> None:
 		"""When neither og:title nor meta desc has location, neighborhood is None."""
@@ -1373,8 +1413,8 @@ class TestParseListingDetailsNeighborhood:
 		listing: AirbnbListing = parse_listing_details(page_html=html)
 		assert listing.neighborhood is None
 
-	def test_h1_no_in_pattern_falls_back_to_og_title(self) -> None:
-		"""H1 without 'in' pattern falls back to og:title location."""
+	def test_h1_keyword_scan_finds_neighborhood_in_title(self) -> None:
+		"""H1 without 'in' pattern uses keyword scan to find known neighbourhood."""
 		html = """
 		<html><head>
 		<meta property="og:title" content="Home in Mexico City · ★4.88 · 1 bedroom · 1 bed · 1 private bath" />
@@ -1385,7 +1425,152 @@ class TestParseListingDetailsNeighborhood:
 		</body></html>
 		"""
 		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Condesa"
+
+	def test_h1_no_known_name_falls_back_to_og_title(self) -> None:
+		"""H1 with no known neighbourhood names falls back to og:title city."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Mexico City · ★4.88 · 1 bedroom · 1 bed · 1 private bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Beautiful new loft, very central</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
 		assert listing.neighborhood == "Mexico City"
+
+	def test_h1_at_preposition_extracts_neighborhood(self) -> None:
+		"""H1 with 'at La Roma' extracts Roma Norte via keyword scan."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Rental unit in Mexico City · ★4.5 · 1 bedroom · 1 bed · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Cozy flat w/great views at La Roma</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Roma Norte"
+
+	def test_h1_near_preposition_extracts_neighborhood(self) -> None:
+		"""H1 with 'near the Angel of Independence' extracts Colonia Juárez."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Mexico City · ★4.3 · 2 bedrooms · 2 beds · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Magnificent apartment near the Angel of Independence</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Colonia Juárez"
+
+	def test_h1_in_the_historic_center_extracts_neighborhood(self) -> None:
+		"""H1 with 'in the Historic Center of Mexico City' extracts Centro Histórico."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Mexico City · ★4.9 · 1 bedroom · 1 bed · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Magnificent apartment in the Historic Center of Mexico City</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Centro Histórico"
+
+	def test_keyword_scan_in_title_without_preposition(self) -> None:
+		"""H1 like 'Beautiful, Cozy, Heart Condesa' finds Condesa via keyword scan."""
+		html = """
+		<html><head>
+		<meta property="og:title" content="Home in Mexico City · ★4.5 · 1 bedroom · 1 bed · 1 bath" />
+		<meta property="og:url" content="https://www.airbnb.com/rooms/123456" />
+		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
+		</head><body>
+		<h1>Beautiful, Cozy, Lovely, Very SAFE, Heart Condesa</h1>
+		</body></html>
+		"""
+		listing: AirbnbListing = parse_listing_details(page_html=html)
+		assert listing.neighborhood == "Condesa"
+
+
+# ══════════════════════════════════════════════════════════════
+# _normalize_neighborhood / _scan_for_known_neighborhoods
+# ══════════════════════════════════════════════════════════════
+
+
+class TestNormalizeNeighborhood:
+	"""Verify neighbourhood normalisation via the CDMX mapping."""
+
+	def test_exact_match_returns_canonical(self) -> None:
+		"""Known abbreviation 'Roma Nte' maps to 'Roma Norte'."""
+		assert _normalize_neighborhood("Roma Nte") == "Roma Norte"
+
+	def test_case_insensitive_match(self) -> None:
+		"""Lookup is case-insensitive: 'roma nte' maps to 'Roma Norte'."""
+		assert _normalize_neighborhood("roma nte") == "Roma Norte"
+
+	def test_suffix_trimming_cdmx(self) -> None:
+		"""Strips ', CDMX' suffix before looking up: 'Condesa, CDMX' → 'Condesa'."""
+		assert _normalize_neighborhood("Condesa, CDMX") == "Condesa"
+
+	def test_suffix_trimming_mexico_city(self) -> None:
+		"""Strips ', Mexico City' suffix: 'Historic Center, Mexico City' → 'Centro Histórico'."""
+		assert _normalize_neighborhood("Historic Center, Mexico City") == "Centro Histórico"
+
+	def test_suffix_trimming_of_mexico_city(self) -> None:
+		"""Strips ' of Mexico City' suffix: 'Historic Center of Mexico City' → 'Centro Histórico'."""
+		assert _normalize_neighborhood("Historic Center of Mexico City") == "Centro Histórico"
+
+	def test_unknown_passes_through(self) -> None:
+		"""Unknown neighbourhood names pass through unchanged."""
+		assert _normalize_neighborhood("Polanco") == "Polanco"
+
+	def test_whitespace_stripped(self) -> None:
+		"""Leading/trailing whitespace is stripped before lookup."""
+		assert _normalize_neighborhood("  Roma Norte  ") == "Roma Norte"
+
+
+class TestScanForKnownNeighborhoods:
+	"""Verify keyword scanning for known CDMX neighbourhood names."""
+
+	def test_finds_neighborhood_in_text(self) -> None:
+		"""Finds 'Condesa' in free text and returns canonical name."""
+		result = _scan_for_known_neighborhoods("Beautiful, Cozy, Heart Condesa")
+		assert result == "Condesa"
+
+	def test_longest_match_wins(self) -> None:
+		"""Prefers 'Historic Center' (longer) over 'Centro' when both could match."""
+		result = _scan_for_known_neighborhoods("Apartment in the Historic Center")
+		assert result == "Centro Histórico"
+
+	def test_case_insensitive_scan(self) -> None:
+		"""Keyword scan is case-insensitive: 'CONDESA' matches 'Condesa' key."""
+		result = _scan_for_known_neighborhoods("CASA CONDESA ZAPATA")
+		assert result == "Condesa"
+
+	def test_no_match_returns_none(self) -> None:
+		"""Returns None when no known neighbourhood name is found."""
+		result = _scan_for_known_neighborhoods("Beautiful new loft, very central")
+		assert result is None
+
+	def test_finds_tabacalera_with_revolution(self) -> None:
+		"""Finds 'Tabacalera' in 'Sennse Tabacalera - Monument to the Revolution'."""
+		result = _scan_for_known_neighborhoods(
+			"Sennse Tabacalera - Monument to the Revolution"
+		)
+		assert result == "Colonia Tabacalera"
+
+	def test_finds_reforma(self) -> None:
+		"""Finds 'Reforma' in listing title text."""
+		result = _scan_for_known_neighborhoods(
+			"Boutique Loft · Reforma frente a Reforma 222"
+		)
+		assert result == "Colonia Cuauhtémoc"
 
 
 # ══════════════════════════════════════════════════════════════
