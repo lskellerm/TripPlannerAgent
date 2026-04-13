@@ -77,7 +77,7 @@ BEDS_ONLY_PATTERN: Pattern[str] = re.compile(
 )
 BEDS_PATTERN: Pattern[str] = re.compile(r"(\d+)\s*bed(?:room)?s?", re.IGNORECASE)
 BATHS_PATTERN: Pattern[str] = re.compile(
-	r"(\d+)\s*(?:private\s+|shared\s+)?bath(?:room)?s?", re.IGNORECASE
+	r"(\d+(?:\.\d+)?)\s*(?:private\s+|shared\s+)?bath(?:room)?s?", re.IGNORECASE
 )
 
 # ── Neighbourhood Extraction ──
@@ -97,7 +97,7 @@ MAX_CARD_TEXT_LENGTH: int = 100
 # Airbnb og:title format:
 # "<type> in <city> · ★<rating> · N bedroom(s) · N bed(s) · N [private|shared] bath(s)"
 OG_TITLE_ROOM_PATTERN: Pattern[str] = re.compile(
-	r"(\d+)\s*bedrooms?|(\d+)\s*beds?|(\d+)\s*(?:private\s+|shared\s+)?baths?",
+	r"(\d+)\s*bedrooms?|(\d+)\s*beds?|(\d+(?:\.\d+)?)\s*(?:private\s+|shared\s+)?baths?",
 	re.IGNORECASE,
 )
 
@@ -133,6 +133,7 @@ KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Roma-Nte": "Roma Norte",
 	"Roma-North": "Roma Norte",
 	"Roma North": "Roma Norte",
+	"Colonia Roma": "Roma Norte",
 	"La Roma": "Roma Norte",
 	"Colima": "Roma Norte",
 	"ColRoma-Sr": "Roma Sur",
