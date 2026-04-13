@@ -222,3 +222,46 @@ RELEVANT_AIRBNB_AMENITIES: set[str] = {
 	"Free parking on premises",
 	"Free street parking",
 }
+
+
+# ── Amenity Alias Map ──
+# Maps common short-hand amenity names the LLM might request to the
+# set of full Airbnb amenity strings that satisfy the requirement.
+# All keys and values are lower-cased for case-insensitive matching.
+AMENITY_ALIASES: dict[str, list[str]] = {
+	"ac": [
+		"air conditioning",
+		"central air conditioning",
+		"portable air conditioning",
+		"mini split",
+		"a/c",
+		"window ac",
+		"window air conditioning",
+	],
+	"air conditioning": [
+		"air conditioning",
+		"central air conditioning",
+		"portable air conditioning",
+		"mini split",
+		"a/c",
+		"window ac",
+		"window air conditioning",
+	],
+	"wifi": ["wifi", "wi-fi", "wireless internet"],
+	"wi-fi": ["wifi", "wi-fi", "wireless internet"],
+	"washer": ["washer", "washer/dryer", "washer / dryer"],
+	"dryer": ["dryer", "washer/dryer", "washer / dryer"],
+	"parking": [
+		"free parking",
+		"paid parking",
+		"free parking on premises",
+		"free street parking",
+		"parking",
+	],
+	"pool": ["pool", "shared pool", "private pool"],
+	"hot tub": ["hot tub", "private hot tub", "shared hot tub"],
+	"gym": ["gym", "fitness center", "exercise equipment"],
+	"kitchen": ["kitchen", "full kitchen", "kitchenette"],
+	"tv": ["tv", "hdtv", "television"],
+	"heating": ["heating", "central heating", "radiant heating"],
+}
