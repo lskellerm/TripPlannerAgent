@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 	- ``OLLAMA_MAX_TOKENS``: Maximum number of tokens the model can generate per request.
 	- ``OLLAMA_NUM_CTX``: Context window size (in tokens) for the Ollama model. At startup, a derived Ollama model is created with this value baked in (via ``/api/create``), because Ollama's OpenAI-compatible endpoint does not support ``options.num_ctx``. Default 65536.
 	- ``OLLAMA_TEMPERATURE``: Sampling temperature for model generation (lower = more deterministic).
-	- ``OLLAMA_TIMEOUT``: Timeout in seconds for model requests.
+	- ``OLLAMA_TIMEOUT``: Timeout in seconds for model requests (covers httpx read timeout during streaming). Local LLMs with large contexts and thinking enabled (e.g. qwen3.5) need generous read timeouts — the model may pause for extended periods between output chunks while processing tool results or reasoning internally.
 	- ``OLLAMA_FREQUENCY_PENALTY``: Penalizes repeated tokens based on frequency (0.0–2.0). Helps prevent degenerate text loops.
 	- ``OLLAMA_PRESENCE_PENALTY``: Penalizes tokens that have already appeared (0.0–2.0). Encourages topic diversity.
 	- ``API_KEY``: Secret API key for authenticating requests.
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
 	OLLAMA_MAX_TOKENS: int = 16384
 	OLLAMA_NUM_CTX: int = 65536  # Baked into a derived Ollama model at startup
 	OLLAMA_TEMPERATURE: float = 0.2
-	OLLAMA_TIMEOUT: float = 300.0
+	OLLAMA_TIMEOUT: float = 1200.0
 	OLLAMA_FREQUENCY_PENALTY: float = 0.3
 	OLLAMA_PRESENCE_PENALTY: float = 0.2
 
@@ -78,6 +78,7 @@ class Settings(BaseSettings):
 	# ── Playwright MCP Server Configuration ──
 	PLAYWRIGHT_MCP_VERSION: str = "0.0.70"
 	PLAYWRIGHT_OUTPUT_DIR: str = "./.playwright-mcp/html_output"
+	MAX_CONCURRENT_BROWSERS: int = 3
 
 	# ── Rate Limiting ──
 	RATE_LIMIT_PER_MINUTE: int = 10
