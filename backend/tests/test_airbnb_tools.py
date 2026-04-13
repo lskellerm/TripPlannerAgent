@@ -1098,6 +1098,157 @@ class TestFilterListings:
 		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
 		assert len(result) == 1
 
+	def test_amenity_alias_ac_matches_air_conditioning(
+		self,
+		cost_a: CostBreakdown,
+	) -> None:
+		"""Short-hand 'AC' matches 'Air conditioning' via alias map."""
+		listing = AirbnbListing(
+			url="https://www.airbnb.com/rooms/111",
+			title="Test AC alias",
+			total_cost=500.0,
+			nightly_rate=71.43,
+			num_beds=2,
+			num_bedrooms=2,
+			num_bathrooms=2,
+			amenities=["Air conditioning", "Wi-Fi"],
+			neighborhood="Roma Norte",
+			rating=4.9,
+			num_reviews=50,
+		)
+		lwc = ListingWithCost(listing=listing, cost_breakdown=cost_a)
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=1,
+			min_bathrooms=1,
+			required_amenities=["AC"],
+		)
+		result: list[ListingWithCost] = filter_listings([lwc], constraints)
+		assert len(result) == 1
+
+	def test_amenity_alias_ac_matches_portable_air_conditioning(
+		self,
+		cost_a: CostBreakdown,
+	) -> None:
+		"""Short-hand 'AC' matches 'Portable air conditioning' via alias map."""
+		listing = AirbnbListing(
+			url="https://www.airbnb.com/rooms/222",
+			title="Test portable AC",
+			total_cost=500.0,
+			nightly_rate=71.43,
+			num_beds=2,
+			num_bedrooms=2,
+			num_bathrooms=2,
+			amenities=["Portable air conditioning", "Wi-Fi"],
+			neighborhood="Roma Norte",
+			rating=4.9,
+			num_reviews=50,
+		)
+		lwc = ListingWithCost(listing=listing, cost_breakdown=cost_a)
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=1,
+			min_bathrooms=1,
+			required_amenities=["AC"],
+		)
+		result: list[ListingWithCost] = filter_listings([lwc], constraints)
+		assert len(result) == 1
+
+	def test_amenity_alias_wifi_matches_wi_fi(
+		self,
+		cost_a: CostBreakdown,
+	) -> None:
+		"""Short-hand 'wifi' matches 'Wi-Fi' via alias map."""
+		listing = AirbnbListing(
+			url="https://www.airbnb.com/rooms/333",
+			title="Test wifi alias",
+			total_cost=500.0,
+			nightly_rate=71.43,
+			num_beds=2,
+			num_bedrooms=2,
+			num_bathrooms=2,
+			amenities=["Wi-Fi"],
+			neighborhood="Roma Norte",
+			rating=4.9,
+			num_reviews=50,
+		)
+		lwc = ListingWithCost(listing=listing, cost_breakdown=cost_a)
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=1,
+			min_bathrooms=1,
+			required_amenities=["wifi"],
+		)
+		result: list[ListingWithCost] = filter_listings([lwc], constraints)
+		assert len(result) == 1
+
+	def test_amenity_substring_fallback(
+		self,
+		cost_a: CostBreakdown,
+	) -> None:
+		"""Unlisted amenity falls back to substring matching."""
+		listing = AirbnbListing(
+			url="https://www.airbnb.com/rooms/444",
+			title="Test substring fallback",
+			total_cost=500.0,
+			nightly_rate=71.43,
+			num_beds=2,
+			num_bedrooms=2,
+			num_bathrooms=2,
+			amenities=["Indoor fireplace", "Wi-Fi"],
+			neighborhood="Roma Norte",
+			rating=4.9,
+			num_reviews=50,
+		)
+		lwc = ListingWithCost(listing=listing, cost_breakdown=cost_a)
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=1,
+			min_bathrooms=1,
+			required_amenities=["fireplace"],
+		)
+		result: list[ListingWithCost] = filter_listings([lwc], constraints)
+		assert len(result) == 1
+
+	def test_amenity_no_match_still_excludes(
+		self,
+		lwc_a: ListingWithCost,
+	) -> None:
+		"""Amenity with no alias or substring hit still excludes listing."""
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=1,
+			min_bathrooms=1,
+			required_amenities=["sauna"],  # Not in listing A amenities
+		)
+		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
+		assert len(result) == 0
+
 
 class TestRankByCategory:
 	"""Verify categorical ranking of listings."""
