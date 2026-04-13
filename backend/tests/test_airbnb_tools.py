@@ -281,6 +281,7 @@ class TestParseSearchResults:
 	def test_returns_list(self) -> None:
 		"""Parser always returns a list (may be empty for SPA pages)."""
 		result: list[AirbnbListing] = parse_search_results(
+			location="Mexico City",
 			page_html="<html><body>No listings</body></html>"
 		)
 		assert isinstance(result, list)
@@ -307,7 +308,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 2
 		assert listings[0].url == "https://www.airbnb.com/rooms/12345?adults=2"
 		assert listings[1].url == "https://www.airbnb.com/rooms/67890?adults=2"
@@ -320,7 +321,7 @@ class TestParseSearchResults:
 		<a href="/rooms/12345?v2">Link 2</a>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 
 	def test_search_page_fixture(self) -> None:
@@ -328,7 +329,7 @@ class TestParseSearchResults:
 		if not SEARCH_PAGE_HTML.exists():
 			pytest.skip("Search page HTML fixture not found")
 		html: str = SEARCH_PAGE_HTML.read_text(encoding="utf-8")
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert isinstance(listings, list)
 		# Airbnb SPA pages may yield 0 listings from raw HTML
 		for listing in listings:
@@ -346,7 +347,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].nightly_rate == 220.0
 
@@ -365,7 +366,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].num_bedrooms == 2
 		assert listings[0].num_beds == 2
@@ -385,7 +386,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].num_beds == 1
 		assert listings[0].num_bedrooms is None
@@ -404,7 +405,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood == "Mexico City"
 
@@ -423,7 +424,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood == "Roma Norte"
 
@@ -442,7 +443,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood == "Condesa"
 
@@ -460,7 +461,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood is None
 
@@ -479,7 +480,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood == "Condesa"
 
@@ -498,7 +499,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].neighborhood == "Roma Norte"
 
@@ -516,7 +517,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].total_cost == 700.0
 		assert listings[0].nightly_rate == 100.0
@@ -539,7 +540,7 @@ class TestParseSearchResults:
 
 		json_wrapped: str = orjson.dumps(inner).decode("utf-8")
 		# json_wrapped is '"<html>..."' — a JSON string
-		listings: list[AirbnbListing] = parse_search_results(page_html=json_wrapped)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=json_wrapped)
 		# page_html path doesn't go through _unwrap_json_string — only html_file does.
 		# This tests that the link extraction works on properly formatted HTML.
 		# For JSON-unwrapped content we test via _unwrap_json_string directly.
@@ -569,7 +570,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 1
 		assert listings[0].num_bedrooms == 2
 		assert listings[0].num_beds == 2
@@ -610,7 +611,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		room_ids = {
 			listing.url.split("/rooms/")[1].split("?")[0] for listing in listings
 		}
@@ -629,7 +630,7 @@ class TestParseSearchResults:
 		</div>
 		</body></html>
 		"""
-		listings: list[AirbnbListing] = parse_search_results(page_html=html)
+		listings: list[AirbnbListing] = parse_search_results(location="Mexico City", page_html=html)
 		assert len(listings) == 2
 
 
@@ -647,7 +648,7 @@ class TestParseListingDetails:
 			<div>3 bedrooms · 2 bathrooms</div>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.url == "https://www.airbnb.com/rooms/12345"
 		assert listing.title == "Beautiful Loft in Roma Norte"
 		assert listing.num_bedrooms == 3
@@ -661,7 +662,7 @@ class TestParseListingDetails:
 			<meta property="og:title" content="Home in Mexico City · ★4.88 · 1 bedroom · 1 bed · 1 private bath" />
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.num_bedrooms == 1
 		assert listing.num_beds == 1
 		assert listing.num_bathrooms == 1
@@ -674,7 +675,7 @@ class TestParseListingDetails:
 			<meta property="og:title" content="Condo in CDMX · 3 bedrooms · 4 beds · 2 shared baths" />
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.num_bedrooms == 3
 		assert listing.num_beds == 4
 		assert listing.num_bathrooms == 2
@@ -689,7 +690,7 @@ class TestParseListingDetails:
 			<div>5 bedrooms · 4 bathrooms</div>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.num_bedrooms == 2
 		assert listing.num_beds == 3
 		assert listing.num_bathrooms == 1
@@ -711,21 +712,21 @@ class TestParseListingDetails:
 			</script>
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.rating == 4.91
 		assert listing.num_reviews == 126
 
 	def test_raises_on_missing_url(self) -> None:
 		"""Parser raises ValueError if no URL can be found."""
 		with pytest.raises(ValueError, match="Could not determine listing URL"):
-			parse_listing_details(page_html="<html><body>No URL</body></html>")
+			parse_listing_details(location="Mexico City", page_html="<html><body>No URL</body></html>")
 
 	def test_listing_page_fixture(self) -> None:
 		"""Parser runs without error on the saved listing page fixture."""
 		if not LISTING_PAGE_HTML.exists():
 			pytest.skip("Listing page HTML fixture not found")
 		html: str = LISTING_PAGE_HTML.read_text(encoding="utf-8")
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert isinstance(listing, AirbnbListing)
 		assert "airbnb.com/rooms/" in listing.url
 
@@ -1095,10 +1096,12 @@ class TestRankByCategory:
 		lwc_a: ListingWithCost,
 		lwc_c: ListingWithCost,
 	) -> None:
-		"""Best reviews selects highest rating, reviews as tiebreaker."""
+		"""Best reviews uses composite score (60% rating + 40% volume)."""
 		result: dict[str, ListingWithCost | None] = rank_by_category([lwc_a, lwc_c])
-		# lwc_c has 4.95 > lwc_a 4.91
-		assert result["best_reviews"] is lwc_c
+		# lwc_a: 0.6*(4.91/5)+0.4*(126/126) = 0.989
+		# lwc_c: 0.6*(4.95/5)+0.4*(86/126)  = 0.867
+		# lwc_a wins on composite score due to many more reviews
+		assert result["best_reviews"] is lwc_a
 
 	def test_best_location(
 		self,
@@ -1319,11 +1322,11 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Remodelled Apartment in Central Condesa, CDMX</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Condesa"
 
 	def test_h1_extracts_hyphenated_neighborhood(self) -> None:
-		"""H1 'Apartment in Roma-Condesa ...' yields Condesa (normalised via CDMX map)."""
+		"""H1 'Apartment in Roma-Condesa ...' yields Roma Norte (normalised via CDMX map)."""
 		html = """
 		<html><head>
 		<meta property="og:title" content="Rental unit in Mexico City · ★5.0 · 2 bedrooms · 2 beds · 1 bath" />
@@ -1333,8 +1336,8 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Apartment in Roma-Condesa, very conveniently located.</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
-		assert listing.neighborhood == "Condesa"
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
+		assert listing.neighborhood == "Roma Norte"
 
 	def test_h1_rejects_generic_description(self) -> None:
 		"""H1 with 'in a picturesque neighborhood' falls back to og:title city."""
@@ -1347,7 +1350,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Well-equipped house in a picturesque and safe neighborhood</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Mexico City"
 
 	def test_h1_rejects_the_center(self) -> None:
@@ -1361,7 +1364,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Great apartment in the center of the city.</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Mexico City"
 
 	def test_og_title_extracts_city(self) -> None:
@@ -1373,7 +1376,7 @@ class TestParseListingDetailsNeighborhood:
 		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Mexico City"
 
 	def test_og_title_extracts_neighborhood_with_spaces(self) -> None:
@@ -1385,7 +1388,7 @@ class TestParseListingDetailsNeighborhood:
 		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Roma Norte"
 
 	def test_fallback_to_meta_description(self) -> None:
@@ -1398,7 +1401,7 @@ class TestParseListingDetailsNeighborhood:
 		<meta name="description" content="Cozy apartment in Condesa, Mexico City" />
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Condesa"
 
 	def test_no_neighborhood_available(self) -> None:
@@ -1410,7 +1413,7 @@ class TestParseListingDetailsNeighborhood:
 		<link rel="canonical" href="https://www.airbnb.com/rooms/123456" />
 		</head><body></body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood is None
 
 	def test_h1_keyword_scan_finds_neighborhood_in_title(self) -> None:
@@ -1424,7 +1427,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>CASA CONDESA ZAPATA *****</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Condesa"
 
 	def test_h1_no_known_name_falls_back_to_og_title(self) -> None:
@@ -1438,7 +1441,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Beautiful new loft, very central</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Mexico City"
 
 	def test_h1_at_preposition_extracts_neighborhood(self) -> None:
@@ -1452,7 +1455,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Cozy flat w/great views at La Roma</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Roma Norte"
 
 	def test_h1_near_preposition_extracts_neighborhood(self) -> None:
@@ -1466,7 +1469,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Magnificent apartment near the Angel of Independence</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Colonia Juárez"
 
 	def test_h1_in_the_historic_center_extracts_neighborhood(self) -> None:
@@ -1480,7 +1483,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Magnificent apartment in the Historic Center of Mexico City</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Centro Histórico"
 
 	def test_keyword_scan_in_title_without_preposition(self) -> None:
@@ -1494,7 +1497,7 @@ class TestParseListingDetailsNeighborhood:
 		<h1>Beautiful, Cozy, Lovely, Very SAFE, Heart Condesa</h1>
 		</body></html>
 		"""
-		listing: AirbnbListing = parse_listing_details(page_html=html)
+		listing: AirbnbListing = parse_listing_details(location="Mexico City", page_html=html)
 		assert listing.neighborhood == "Condesa"
 
 
@@ -1508,31 +1511,37 @@ class TestNormalizeNeighborhood:
 
 	def test_exact_match_returns_canonical(self) -> None:
 		"""Known abbreviation 'Roma Nte' maps to 'Roma Norte'."""
-		assert _normalize_neighborhood("Roma Nte") == "Roma Norte"
+		assert _normalize_neighborhood("Roma Nte", location="Mexico City") == "Roma Norte"
 
 	def test_case_insensitive_match(self) -> None:
 		"""Lookup is case-insensitive: 'roma nte' maps to 'Roma Norte'."""
-		assert _normalize_neighborhood("roma nte") == "Roma Norte"
+		assert _normalize_neighborhood("roma nte", location="Mexico City") == "Roma Norte"
 
 	def test_suffix_trimming_cdmx(self) -> None:
 		"""Strips ', CDMX' suffix before looking up: 'Condesa, CDMX' → 'Condesa'."""
-		assert _normalize_neighborhood("Condesa, CDMX") == "Condesa"
+		assert _normalize_neighborhood("Condesa, CDMX", location="Mexico City") == "Condesa"
 
 	def test_suffix_trimming_mexico_city(self) -> None:
 		"""Strips ', Mexico City' suffix: 'Historic Center, Mexico City' → 'Centro Histórico'."""
-		assert _normalize_neighborhood("Historic Center, Mexico City") == "Centro Histórico"
+		assert (
+			_normalize_neighborhood("Historic Center, Mexico City", location="Mexico City")
+			== "Centro Histórico"
+		)
 
 	def test_suffix_trimming_of_mexico_city(self) -> None:
 		"""Strips ' of Mexico City' suffix: 'Historic Center of Mexico City' → 'Centro Histórico'."""
-		assert _normalize_neighborhood("Historic Center of Mexico City") == "Centro Histórico"
+		assert (
+			_normalize_neighborhood("Historic Center of Mexico City", location="Mexico City")
+			== "Centro Histórico"
+		)
 
 	def test_unknown_passes_through(self) -> None:
 		"""Unknown neighbourhood names pass through unchanged."""
-		assert _normalize_neighborhood("Polanco") == "Polanco"
+		assert _normalize_neighborhood("Polanco", location="Mexico City") == "Polanco"
 
 	def test_whitespace_stripped(self) -> None:
 		"""Leading/trailing whitespace is stripped before lookup."""
-		assert _normalize_neighborhood("  Roma Norte  ") == "Roma Norte"
+		assert _normalize_neighborhood("  Roma Norte  ", location="Mexico City") == "Roma Norte"
 
 
 class TestScanForKnownNeighborhoods:
@@ -1540,35 +1549,37 @@ class TestScanForKnownNeighborhoods:
 
 	def test_finds_neighborhood_in_text(self) -> None:
 		"""Finds 'Condesa' in free text and returns canonical name."""
-		result = _scan_for_known_neighborhoods("Beautiful, Cozy, Heart Condesa")
+		result = _scan_for_known_neighborhoods("Beautiful, Cozy, Heart Condesa", location="Mexico City")
 		assert result == "Condesa"
 
 	def test_longest_match_wins(self) -> None:
 		"""Prefers 'Historic Center' (longer) over 'Centro' when both could match."""
-		result = _scan_for_known_neighborhoods("Apartment in the Historic Center")
+		result = _scan_for_known_neighborhoods("Apartment in the Historic Center", location="Mexico City")
 		assert result == "Centro Histórico"
 
 	def test_case_insensitive_scan(self) -> None:
 		"""Keyword scan is case-insensitive: 'CONDESA' matches 'Condesa' key."""
-		result = _scan_for_known_neighborhoods("CASA CONDESA ZAPATA")
+		result = _scan_for_known_neighborhoods("CASA CONDESA ZAPATA", location="Mexico City")
 		assert result == "Condesa"
 
 	def test_no_match_returns_none(self) -> None:
 		"""Returns None when no known neighbourhood name is found."""
-		result = _scan_for_known_neighborhoods("Beautiful new loft, very central")
+		result = _scan_for_known_neighborhoods("Beautiful new loft, very central", location="Mexico City")
 		assert result is None
 
 	def test_finds_tabacalera_with_revolution(self) -> None:
 		"""Finds 'Tabacalera' in 'Sennse Tabacalera - Monument to the Revolution'."""
 		result = _scan_for_known_neighborhoods(
-			"Sennse Tabacalera - Monument to the Revolution"
+			"Sennse Tabacalera - Monument to the Revolution",
+			location="Mexico City",
 		)
 		assert result == "Colonia Tabacalera"
 
 	def test_finds_reforma(self) -> None:
 		"""Finds 'Reforma' in listing title text."""
 		result = _scan_for_known_neighborhoods(
-			"Boutique Loft · Reforma frente a Reforma 222"
+			"Boutique Loft · Reforma frente a Reforma 222",
+			location="Mexico City",
 		)
 		assert result == "Colonia Cuauhtémoc"
 
@@ -1592,7 +1603,7 @@ class TestParseListingPage:
 		<div>$344 for 7 nights</div>
 		</body></html>
 		"""
-		result: ListingWithCost = parse_listing_page(page_html=html, num_people=2)
+		result: ListingWithCost = parse_listing_page(location="Mexico City", page_html=html, num_people=2)
 		assert isinstance(result, ListingWithCost)
 		assert isinstance(result.listing, AirbnbListing)
 		assert isinstance(result.cost_breakdown, CostBreakdown)
@@ -1608,7 +1619,7 @@ class TestParseListingPage:
 		<div>$500 for 5 nights</div>
 		</body></html>
 		"""
-		result: ListingWithCost = parse_listing_page(page_html=html)
+		result: ListingWithCost = parse_listing_page(location="Mexico City", page_html=html)
 		assert result.listing.num_bedrooms == 1
 		assert result.listing.num_beds == 1
 		assert result.listing.num_bathrooms == 1
@@ -1627,7 +1638,7 @@ class TestParseListingPage:
 		<div>Total (USD) $750.00</div>
 		</body></html>
 		"""
-		result: ListingWithCost = parse_listing_page(page_html=html, num_people=3)
+		result: ListingWithCost = parse_listing_page(location="Mexico City", page_html=html, num_people=3)
 		assert result.cost_breakdown.total_cost == 750.0
 		assert result.cost_breakdown.num_people == 3
 		assert result.cost_breakdown.cost_per_person == 250.0
@@ -1642,7 +1653,7 @@ class TestParseListingPage:
 		</body></html>
 		"""
 		with pytest.raises(ValueError, match="Could not determine listing URL"):
-			parse_listing_page(page_html=html)
+			parse_listing_page(location="Mexico City", page_html=html)
 
 	def test_raises_on_missing_price(self) -> None:
 		"""Raises ModelRetry when no price can be extracted."""
@@ -1653,4 +1664,4 @@ class TestParseListingPage:
 		</head><body>No price here</body></html>
 		"""
 		with pytest.raises(ModelRetry, match="Could not extract total price"):
-			parse_listing_page(page_html=html)
+			parse_listing_page(location="Mexico City", page_html=html)
