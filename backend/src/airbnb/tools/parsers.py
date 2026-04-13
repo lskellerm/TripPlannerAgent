@@ -22,10 +22,11 @@ import re
 from pathlib import Path
 from re import Match, Pattern
 from typing import Union
+from urllib.parse import urlparse
 
 import orjson
 from bs4 import BeautifulSoup, Tag
-from bs4.element import AttributeValueList, NavigableString
+from bs4.element import AttributeValueList
 from orjson import JSONDecodeError
 from pydantic_ai.exceptions import ModelRetry
 
@@ -195,7 +196,7 @@ _CDMX_SCAN_PATTERNS: list[tuple[Pattern[str], str]] = sorted(
 )
 
 
-def _normalize_neighborhood(candidate: str) -> str:
+def _normalize_neighborhood(candidate: str, location: str) -> str:
 	"""Normalise an extracted neighbourhood name via the CDMX mapping.
 
 	Performs a case-insensitive exact lookup first.  If that fails, strips
@@ -204,26 +205,29 @@ def _normalize_neighborhood(candidate: str) -> str:
 
 	Args:
 		candidate: Raw neighbourhood string extracted from the page.
+		location: The search location (e.g. "Mexico City") to help determine what normalization rules to apply.
 
 	Returns:
 		The canonical neighbourhood name if found in the mapping,
 		otherwise the original ``candidate`` unchanged.
 	"""
 	lowered: str = candidate.strip().lower()
-	if lowered in _CDMX_LOWER_MAP:
-		return _CDMX_LOWER_MAP[lowered]
 
-	# Try stripping common city-name suffixes.
-	for suffix in CITY_SUFFIXES:
-		if lowered.endswith(suffix.lower()):
-			trimmed: str = lowered[: -len(suffix)].strip()
-			if trimmed in _CDMX_LOWER_MAP:
-				return _CDMX_LOWER_MAP[trimmed]
+	if location.lower() == "mexico city":
+		if lowered in _CDMX_LOWER_MAP:
+			return _CDMX_LOWER_MAP[lowered]
+
+		# Try stripping common city-name suffixes.
+		for suffix in CITY_SUFFIXES:
+			if lowered.endswith(suffix.lower()):
+				trimmed: str = lowered[: -len(suffix)].strip()
+				if trimmed in _CDMX_LOWER_MAP:
+					return _CDMX_LOWER_MAP[trimmed]
 
 	return candidate
 
 
-def _scan_for_known_neighborhoods(text: str) -> Union[str, None]:
+def _scan_for_known_neighborhoods(text: str, location: str) -> Union[str, None]:
 	"""Scan free text for any known CDMX neighbourhood name.
 
 	Uses pre-compiled word-boundary regex patterns, checked longest-first
@@ -231,13 +235,14 @@ def _scan_for_known_neighborhoods(text: str) -> Union[str, None]:
 
 	Args:
 		text: Arbitrary text to scan (e.g. an H1 title or listing name).
-
+		location: The search location (e.g. "Mexico City") to help determine what regex patter is used (country/location specific patterns can be added in the future if needed).
 	Returns:
 		The canonical neighbourhood name if a match is found, or ``None``.
 	"""
-	for pattern, canonical in _CDMX_SCAN_PATTERNS:
-		if pattern.search(text):
-			return canonical
+	if location.lower() == "mexico city":
+		for pattern, canonical in _CDMX_SCAN_PATTERNS:
+			if pattern.search(text):
+				return canonical
 	return None
 
 
@@ -366,27 +371,29 @@ def _find_similar_dates_links(soup: BeautifulSoup) -> set[int]:
 
 
 def parse_search_results(
+	location: str,
 	html_file: Union[str, None] = None,
 	page_html: Union[str, None] = None,
 ) -> list[AirbnbListing]:
 	"""Extract partial listing data from an Airbnb search results page.
 
-	Parses search result cards to extract title, price preview, rating,
-	URL, and neighbourhood.  Uses embedded JSON data as the primary
-	source and falls back to DOM-based extraction for listing links.
+		Parses search result cards to extract title, price preview, rating,
+		URL, and neighbourhood.  Uses embedded JSON data as the primary
+		source and falls back to DOM-based extraction for listing links.
+	parse_search
+		Accepts either a file path (for the file-based HTML bridge with
+		Playwright MCP) or a raw HTML string (for tests / cached mode).
 
-	Accepts either a file path (for the file-based HTML bridge with
-	Playwright MCP) or a raw HTML string (for tests / cached mode).
+		Args:
+			location: The search location (e.g. "Mexico City") to help determine what normalization rules to apply when extracting neighbourhood names.
+			html_file: Filename relative to ``PLAYWRIGHT_OUTPUT_DIR`` or an
+				absolute path to a saved HTML file.
+			page_html: Raw HTML string of an Airbnb search results page.
 
-	Args:
-		html_file: Filename relative to ``PLAYWRIGHT_OUTPUT_DIR`` or an
-			absolute path to a saved HTML file.
-		page_html: Raw HTML string of an Airbnb search results page.
-
-	Returns:
-		A list of partially populated ``AirbnbListing`` objects.  Fields
-		like ``num_bedrooms`` or ``total_cost`` may be ``None`` since
-		they require visiting the individual listing page.
+		Returns:
+			A list of partially populated ``AirbnbListing`` objects.  Fields
+			like ``num_bedrooms`` or ``total_cost`` may be ``None`` since
+			they require visiting the individual listing page.
 	"""
 	html_content: str = _resolve_html(html_file=html_file, page_html=page_html)
 	soup = BeautifulSoup(html_content, "lxml")
@@ -414,11 +421,15 @@ def parse_search_results(
 			continue
 		seen_room_ids.add(room_id)
 
-		# Build the full URL
+		# Build a clean URL — strip tracking query params that inflate
+		# token counts when the full listing list is serialised for the
+		# LLM.  Keep only the /rooms/<room_id> path.
 		if href.startswith("/"):
-			url = f"https://www.airbnb.com{href}"
+			clean_path: str = urlparse(href).path
+			url = f"https://www.airbnb.com{clean_path}"
 		else:
-			url: str = href
+			clean_path: str = urlparse(href).path
+			url: str = f"https://www.airbnb.com{clean_path}"
 
 		# Try to find a title from the nearest container
 		title = ""
@@ -517,7 +528,9 @@ def parse_search_results(
 					):
 						neighborhood = nb_candidate
 
-			# Strategy 2: scan card children for middle-dot separator text
+			# Strategy 2: scan card children for middle-dot separator text.
+			# Validate candidates against the known-neighbourhood list to
+			# avoid accepting listing-title fragments (e.g. "Bright Apt").
 			if neighborhood is None:
 				for child in container.find_all(["div", "span", "p"]):
 					child_text: str = child.get_text(strip=True)
@@ -533,8 +546,15 @@ def parse_search_results(
 							<= MAX_NEIGHBORHOOD_LENGTH
 							and not nb_candidate[0].isdigit()
 						):
-							neighborhood = nb_candidate
-							break
+							# Only accept if the candidate matches a known
+							# neighbourhood — raw dot-split text is often
+							# a listing title fragment, not a location.
+							validated: Union[str, None] = _scan_for_known_neighborhoods(
+								nb_candidate, location
+							)
+							if validated is not None:
+								neighborhood = validated
+								break
 
 		# Extract image URL
 		image_url: Union[str, None] = None
@@ -570,10 +590,18 @@ def parse_search_results(
 				if br_match or bd_match:
 					break  # only stop after a successful regex match
 
-		# Extract location from listing-card-title element.
+		# Strategy 3: Keyword scan of the host-given title for known
+		# neighbourhood names (e.g. "Heart Condesa" → "Condesa").
+		# This runs BEFORE the listing-card-title fallback because the
+		# host title often embeds the real neighbourhood, while the card
+		# title typically only gives city-level info ("Mexico City").
+		if neighborhood is None and title:
+			neighborhood = _scan_for_known_neighborhoods(title, location)
+
+		# Strategy 4 (fallback): Extract location from listing-card-title.
 		# Airbnb cards have a data-testid="listing-card-title" element with
 		# text like "Apartment in Mexico City" which provides the property
-		# type and city (useful as a neighbourhood fallback).
+		# type and city.  Only used when prior strategies found nothing.
 		if neighborhood is None and container:
 			title_el: Union[Tag, None] = container.find(
 				attrs={"data-testid": "listing-card-title"}
@@ -591,16 +619,11 @@ def parse_search_results(
 						<= len(loc_candidate)
 						<= MAX_NEIGHBORHOOD_LENGTH
 					):
-						neighborhood: str = loc_candidate
+						neighborhood = loc_candidate
 
-		# Strategy 4: Keyword scan of the host-given title for known
-		# neighbourhood names (e.g. "Heart Condesa" → "Condesa").
-		if neighborhood is None and title:
-			neighborhood = _scan_for_known_neighborhoods(title)
-
-		# Normalise the final neighbourhood through the CDMX mapping.
+		# Normalise the final neighbourhood through known locations abbreviations mapping
 		if neighborhood is not None:
-			neighborhood = _normalize_neighborhood(neighborhood)
+			neighborhood = _normalize_neighborhood(neighborhood, location)
 
 		listings.append(
 			AirbnbListing(
@@ -621,6 +644,7 @@ def parse_search_results(
 
 
 def parse_listing_details(
+	location: str,
 	html_file: Union[str, None] = None,
 	page_html: Union[str, None] = None,
 ) -> AirbnbListing:
@@ -634,6 +658,7 @@ def parse_listing_details(
 	Playwright MCP) or a raw HTML string (for tests / cached mode).
 
 	Args:
+	location: The search location (e.g. "Mexico City") to help determine what normalization rules to apply when extracting neighbourhood names.
 		html_file: Filename relative to ``PLAYWRIGHT_OUTPUT_DIR`` or an
 			absolute path to a saved HTML file.
 		page_html: Raw HTML string of an Airbnb listing detail page.
@@ -708,7 +733,7 @@ def parse_listing_details(
 	# Airbnb og:title format:
 	#   "Home in Mexico City · ★4.88 · 1 bedroom · 1 bed · 1 private bath"
 	num_bedrooms: Union[int, None] = None
-	num_bathrooms: Union[int, None] = None
+	num_bathrooms: Union[float, None] = None
 	num_beds: Union[int, None] = None
 
 	if title:
@@ -718,7 +743,7 @@ def parse_listing_details(
 			elif og_match.group(2) and num_beds is None:
 				num_beds = int(og_match.group(2))
 			elif og_match.group(3) and num_bathrooms is None:
-				num_bathrooms = int(og_match.group(3))
+				num_bathrooms = float(og_match.group(3))
 
 	# Fall back to page text extraction if og:title didn't provide counts
 	page_text: str = soup.get_text(" ", strip=True)
@@ -736,11 +761,9 @@ def parse_listing_details(
 	if num_bathrooms is None:
 		baths_match: Union[Match[str], None] = BATHS_PATTERN.search(page_text)
 		if baths_match:
-			num_bathrooms = int(baths_match.group(1))
+			num_bathrooms = float(baths_match.group(1))
 
-	# Extract amenities from the page
-	# TODO: Right now this does not work at ALL. So currently, parsing a listing page will return None for amenities.
-	# We need to find a new strategy to reliably extract amenities from the listing page.
+	# Extract amenities from the page via bootstrap JSON data
 	amenities: Union[list[str], None] = _extract_amenities(soup)
 
 	# Extract neighbourhood.
@@ -750,13 +773,13 @@ def parse_listing_details(
 	#   2. H1 regex pattern — structural "in/at/near {Location}" extraction
 	#   3. og:title — reliable but usually only city-level
 	#      (e.g. "Rental unit in Mexico City · ★5.0 · ...")
-	#   4. meta description — same pattern as H1 text on Airbnb pages
+	#   4. meta description — same pattern as H1 text on Airbnb 	pages
 	# All results are normalised through the CDMX abbreviation mapping.
 	neighborhood: Union[str, None] = None
 
 	# Strategy 1: Keyword scan H1 for known neighbourhoods
 	if h1_text:
-		neighborhood = _scan_for_known_neighborhoods(h1_text)
+		neighborhood = _scan_for_known_neighborhoods(h1_text, location)
 
 	# Strategy 2: H1 regex — structural "in/at/near {Location}" extraction
 	if neighborhood is None and h1_text:
@@ -766,7 +789,7 @@ def parse_listing_details(
 		if h1_loc_match:
 			candidate: str = h1_loc_match.group(1).strip()
 			if MIN_NEIGHBORHOOD_LENGTH <= len(candidate) <= MAX_NEIGHBORHOOD_LENGTH:
-				neighborhood = _normalize_neighborhood(candidate)
+				neighborhood = _normalize_neighborhood(candidate, location)
 
 	# Strategy 3: og:title for city-level fallback
 	if neighborhood is None and title:
@@ -774,7 +797,7 @@ def parse_listing_details(
 		if loc_match:
 			candidate = loc_match.group(1).strip()
 			if MIN_NEIGHBORHOOD_LENGTH <= len(candidate) <= MAX_NEIGHBORHOOD_LENGTH:
-				neighborhood = _normalize_neighborhood(candidate)
+				neighborhood = _normalize_neighborhood(candidate, location)
 
 	# Strategy 4: meta description
 	if neighborhood is None:
@@ -786,7 +809,9 @@ def parse_listing_details(
 			]:
 				match: Union[Match[str], None] = pattern.search(desc)
 				if match:
-					neighborhood = _normalize_neighborhood(match.group(1).strip())
+					neighborhood = _normalize_neighborhood(
+						match.group(1).strip(), location
+					)
 					break
 
 	# Fall back to DOM for rating/reviews if JSON-LD didn't provide them
@@ -1051,42 +1076,87 @@ def parse_booking_price(
 
 
 def _extract_amenities(soup: BeautifulSoup) -> list[str]:
-	"""Extract amenity names from the listing page.
+	"""Extract amenities from an Airbnb listing page via bootstrap JSON.
+
+	Navigates the ``data-deferred-state`` bootstrap data to the
+	``AMENITIES_DEFAULT`` section and extracts amenity titles from
+	``seeAllAmenitiesGroups``.  Only amenities marked as ``available``
+	are included.  Falls back to ``previewAmenitiesGroups`` if the
+	full list is absent.
 
 	Args:
 		soup: Parsed BeautifulSoup document.
 
 	Returns:
-		A deduplicated list of amenity names.
+		A deduplicated list of available amenity names.
 	"""
+	bootstrap: Union[dict, None] = _extract_bootstrap_data(soup)
+	if not bootstrap:
+		return []
+
+	# Navigate: niobeClientData -> [0][1] -> data.presentation
+	#   .stayProductDetailPage.sections.sections -> AMENITIES_DEFAULT
+	niobe: Union[list, None] = bootstrap.get("niobeClientData")
+	if not isinstance(niobe, list) or not niobe:
+		return []
+
+	try:
+		root: dict = niobe[0][1]
+	except (IndexError, TypeError, KeyError):
+		return []
+
+	sections: Union[list, None] = None
+	try:
+		sections = (
+			root.get("data", {})
+			.get("presentation", {})
+			.get("stayProductDetailPage", {})
+			.get("sections", {})
+			.get("sections")
+		)
+	except AttributeError:
+		return []
+
+	if not isinstance(sections, list):
+		return []
+
+	# Find the AMENITIES_DEFAULT section
+	amenity_section: Union[dict, None] = None
+	for section in sections:
+		if (
+			isinstance(section, dict)
+			and section.get("sectionId") == "AMENITIES_DEFAULT"
+		):
+			amenity_section = section
+			break
+
+	if amenity_section is None:
+		return []
+
 	amenities: list[str] = []
 	seen: set[str] = set()
 
-	# Look for amenities in common Airbnb DOM patterns
-	# Pattern 1: data-testid attributes containing "amenity"
-	for el in soup.find_all(attrs={"data-testid": re.compile(r"amenity")}):
-		text: str = el.get_text(strip=True)
-		if text and text.lower() not in seen:
-			seen.add(text.lower())
-			amenities.append(text)
-
-	# Pattern 2: sections or divs with "amenity" or "What this place offers"
-	amenity_section: Union[NavigableString, None] = soup.find(
-		string=re.compile(r"What this place offers", re.IGNORECASE)
+	# Primary: seeAllAmenitiesGroups (full categorised list)
+	all_groups: Union[list, None] = amenity_section.get("section", {}).get(
+		"seeAllAmenitiesGroups"
 	)
-	if amenity_section:
-		parent: Union[Tag, None] = amenity_section.find_parent(["div", "section"])
-		if parent:
-			for item in parent.find_all(["li", "div", "span"]):
-				text: str = item.get_text(strip=True)
-				if (
-					text
-					and len(text) < 100
-					and text.lower() not in seen
-					and "show all" not in text.lower()
-				):
-					seen.add(text.lower())
-					amenities.append(text)
+	if not all_groups:
+		# Fallback: previewAmenitiesGroups (summary list)
+		all_groups = amenity_section.get("section", {}).get("previewAmenitiesGroups")
+
+	if isinstance(all_groups, list):
+		for group in all_groups:
+			if not isinstance(group, dict):
+				continue
+			for amenity in group.get("amenities", []):
+				if not isinstance(amenity, dict):
+					continue
+				if not amenity.get("available", True):
+					continue
+				title: Union[str, None] = amenity.get("title")
+				if title and title.lower() not in seen:
+					seen.add(title.lower())
+					amenities.append(title)
 
 	return amenities
 
@@ -1126,6 +1196,7 @@ def _safe_int(value: object) -> Union[int, None]:
 
 
 def parse_listing_page(
+	location: str,
 	html_file: Union[str, None] = None,
 	page_html: Union[str, None] = None,
 	num_people: int = 1,
@@ -1157,7 +1228,9 @@ def parse_listing_page(
 	# to avoid reading the file twice.
 	html_content: str = _resolve_html(html_file=html_file, page_html=page_html)
 
-	listing: AirbnbListing = parse_listing_details(page_html=html_content)
+	listing: AirbnbListing = parse_listing_details(
+		page_html=html_content, location=location
+	)
 	cost: CostBreakdown = parse_booking_price(
 		page_html=html_content, num_people=num_people
 	)

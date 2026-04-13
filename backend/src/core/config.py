@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 	- ``OLLAMA_BASE_URL``: Base URL for the Ollama LLM provider.
 	- ``OLLAMA_MODEL_NAME``: The Ollama model to use for LLM interactions.
 	- ``OLLAMA_MAX_TOKENS``: Maximum number of tokens the model can generate per request.
-	- ``OLLAMA_NUM_CTX``: Context window size (in tokens) for the Ollama model. At startup, a derived Ollama model is created with this value baked in (via ``/api/create``), because Ollama's OpenAI-compatible endpoint does not support ``options.num_ctx``. Default 65536.
+	- ``OLLAMA_NUM_CTX``: Context window size (in tokens) for the Ollama model. At startup, a derived Ollama model is created with this value baked in (via ``/api/create``), because Ollama's OpenAI-compatible endpoint does not support ``options.num_ctx``. Default 131072 (128K) — a full agent run typically accumulates ~90-100K tokens (system prompt + tool definitions ~19K, 10-15 tool call/response pairs ~50-70K, model thinking/responses ~10K).
 	- ``OLLAMA_TEMPERATURE``: Sampling temperature for model generation (lower = more deterministic).
 	- ``OLLAMA_TIMEOUT``: Timeout in seconds for model requests (covers httpx read timeout during streaming). Local LLMs with large contexts and thinking enabled (e.g. qwen3.5) need generous read timeouts — the model may pause for extended periods between output chunks while processing tool results or reasoning internally.
 	- ``OLLAMA_FREQUENCY_PENALTY``: Penalizes repeated tokens based on frequency (0.0–2.0). Helps prevent degenerate text loops.
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
 	OLLAMA_BASE_URL: str = "http://localhost:11434"
 	OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
 	OLLAMA_MAX_TOKENS: int = 16384
-	OLLAMA_NUM_CTX: int = 65536  # Baked into a derived Ollama model at startup
+	OLLAMA_NUM_CTX: int = 131072  # Baked into a derived Ollama model at startup
 	OLLAMA_TEMPERATURE: float = 0.2
 	OLLAMA_TIMEOUT: float = 1200.0
 	OLLAMA_FREQUENCY_PENALTY: float = 0.3

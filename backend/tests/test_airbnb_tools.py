@@ -311,8 +311,8 @@ class TestParseSearchResults:
 			location="Mexico City", page_html=html
 		)
 		assert len(listings) == 2
-		assert listings[0].url == "https://www.airbnb.com/rooms/12345?adults=2"
-		assert listings[1].url == "https://www.airbnb.com/rooms/67890?adults=2"
+		assert listings[0].url == "https://www.airbnb.com/rooms/12345"
+		assert listings[1].url == "https://www.airbnb.com/rooms/67890"
 
 	def test_deduplicates_by_room_id(self) -> None:
 		"""Duplicate room IDs are only included once."""
