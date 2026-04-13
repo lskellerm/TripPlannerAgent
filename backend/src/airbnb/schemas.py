@@ -56,9 +56,9 @@ class AirbnbListing(BaseModel):
 		default=None,
 		description="Number of bedrooms.",
 	)
-	num_bathrooms: Union[int, None] = Field(
+	num_bathrooms: Union[float, None] = Field(
 		default=None,
-		description="Number of bathrooms.",
+		description="Number of bathrooms (may be fractional, e.g. 1.5 for a half bath).",
 	)
 	amenities: list[str] = Field(
 		default_factory=list,
