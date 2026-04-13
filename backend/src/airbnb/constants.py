@@ -86,7 +86,7 @@ BATHS_PATTERN: Pattern[str] = re.compile(
 NEIGHBORHOOD_TESTID_PATTERN: Pattern[str] = re.compile(
 	r"^(subtitle|listing-card-title)$", re.IGNORECASE
 )
-# Plausible length bounds for a neighbourhood n`ame` extracted from card text
+# Plausible length bounds for a neighbourhood name extracted from card text
 MIN_NEIGHBORHOOD_LENGTH: int = 3
 MAX_NEIGHBORHOOD_LENGTH: int = 60
 # Maximum length of a card child's text to consider for neighbourhood extraction
@@ -134,6 +134,7 @@ KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Roma-North": "Roma Norte",
 	"Roma North": "Roma Norte",
 	"Colonia Roma": "Roma Norte",
+	"Roma-Condesa": "Roma Norte",  # often used interchangeably with "Roma Norte" for listings that are on the border
 	"La Roma": "Roma Norte",
 	"Colima": "Roma Norte",
 	"ColRoma-Sr": "Roma Sur",
@@ -141,7 +142,6 @@ KNOWN_CDMX_NEIGHBORHOOD_ABBREVIATIONS: dict[str, str] = {
 	"Roma Sur": "Roma Sur",
 	"Condesa": "Condesa",
 	"Central Condesa": "Condesa",
-	"Roma-Condesa": "Condesa",
 	"Revolution": "Colonia Tabacalera",
 	"Revolución": "Colonia Tabacalera",
 	"Monumento De La Revolución": "Colonia Tabacalera",
@@ -184,3 +184,41 @@ CITY_SUFFIXES: list[str] = [
 	", CDMX",
 	", México",
 ]
+
+RELEVANT_AIRBNB_AMENITIES: set[str] = {
+	"Wi-Fi",
+	"Wifi",
+	"WiFi",
+	"wi-fi",
+	"wifi",
+	"Internet",
+	"wireless internet",
+	"Air conditioning",
+	"ac",
+	"AC",
+	"Kitchen",
+	"Heating",
+	"washer/dryer",
+	"Washer/Dryer",
+	"Washer",
+	"Dryer",
+	"Washer-Dryer",
+	"Washer and Dryer",
+	"Washer & Dryer",
+	"Early check-in",
+	"Late check-in",
+	"Self check-in",
+	"24-hour check-in",
+	"Gym",
+	"Pool",
+	"Hot tub",
+	"Coffee maker",
+	"TV",
+	"Cable TV",
+	"Smart TV",
+	"TV with standard cable",
+	"Hot Water",
+	"Water Dispenser",
+	"Free parking on premises",
+	"Free street parking",
+}
