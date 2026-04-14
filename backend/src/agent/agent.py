@@ -128,8 +128,13 @@ Follow these steps when the user asks you to plan a trip or find Airbnb listings
    (max 5).  **You MUST pass `check_in` and `check_out` dates** — without
    them Airbnb shows "Add dates for prices" and the price parser fails.
    This tool opens each listing in parallel browser instances, extracts
-   details and booking prices in a single page load per listing, and
-   returns `ListingWithCost` objects.  No manual browser navigation needed.
+   details and booking prices in a single page load per listing.
+   Returns an `ExplorationResult` with two fields:
+   - `succeeded`: list of `ListingWithCost` objects (use these for filtering/ranking)
+   - `failed`: list of `ListingFailure` objects with `url` and `error` fields
+   If some listings failed, mention this to the user and proceed with the
+   successful ones.  Do NOT manually re-navigate failed listings — the
+   error messages explain why they failed.
 
 8. **Filter & Rank (parallel)** — Call BOTH in the same turn:
    - `filter_listings(listings, constraints)` — validates bedrooms,
@@ -210,6 +215,7 @@ must run sequentially.
 - Tool outputs are intermediate data — process and continue.  Only respond
   to user messages conversationally.
 - Reuse data from conversation history to avoid redundant work.
+
 """
 
 # TODO: Replace inline progress reporting with `pydantic-ai-todo` TodoCapability
@@ -285,9 +291,11 @@ cost computation, and categorical ranking.
 - **Pre-filter**: `filter_search_results` — lightweight filter on search
   preview data BEFORE exploration (neighbourhood, bedrooms, rating, budget).
   Optimistic: unknown data passes through.
-- **Batch exploration**: `explore_listings` — opens listings in parallel so Airbnb renders pricing for the specified dates. 
-   Extracts details + booking price in one page load per
-  listing.  Returns `ListingWithCost` objects ready for filtering/ranking.
+- **Batch exploration**: `explore_listings` — opens listings in parallel so Airbnb renders pricing for the specified dates.
+  Extracts details + booking price in one page load per listing.
+  Returns an `ExplorationResult` with `succeeded` (list of `ListingWithCost`)
+  and `failed` (list of `ListingFailure` with `url` and `error`).  Use
+  `result.succeeded` for filtering/ranking.
 - **Analysis**: `filter_listings`, `rank_by_category`,
   `calculate_trip_totals`
 """
@@ -317,7 +325,7 @@ airbnb_toolset.__doc__ = """Custom FunctionToolset bundling all Airbnb-domain to
 
 agent: Agent = Agent(
 	model,
-	toolsets=[playwright_server.defer_loading(), airbnb_toolset.defer_loading()],
+	toolsets=[playwright_server, airbnb_toolset],
 	instructions=AGENT_INSTRUCTIONS,
 	retries=2,
 	model_settings=ModelSettings(
@@ -327,6 +335,7 @@ agent: Agent = Agent(
 		parallel_tool_calls=True,
 		frequency_penalty=settings.OLLAMA_FREQUENCY_PENALTY,
 		presence_penalty=settings.OLLAMA_PRESENCE_PENALTY,
+		thinking="low",
 	),
 )
 """The central Pydantic AI agent for Airbnb search and general trip planning.

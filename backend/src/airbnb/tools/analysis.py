@@ -10,12 +10,47 @@ lists.
 from typing import Union
 
 from src.agent.schemas import TripWeek
+from src.airbnb.constants import AMENITY_ALIASES
 from src.airbnb.schemas import (
 	AirbnbListing,
 	CostBreakdown,
 	ListingWithCost,
 	WeekAnalysis,
 )
+
+
+def _amenity_matches(
+	required: str,
+	listing_amenities_lower: set[str],
+) -> bool:
+	"""Check whether a required amenity is satisfied by the listing.
+
+	First checks the alias map for known short-hand names.  If aliases
+	exist, returns ``True`` when *any* alias appears in the listing's
+	amenity set.  Otherwise falls back to substring matching — returns
+	``True`` if the required string is a substring of any listed
+	amenity.
+
+	Args:
+		required: The required amenity name (already lower-cased).
+		listing_amenities_lower: The listing's amenities as a set of
+			lower-cased strings.
+
+	Returns:
+		``True`` if the listing satisfies the required amenity.
+	"""
+	# Check alias map first
+	aliases: Union[list[str], None] = AMENITY_ALIASES.get(required)
+	if aliases is not None:
+		return any(alias in listing_amenities_lower for alias in aliases)
+
+	# Exact set membership
+	if required in listing_amenities_lower:
+		return True
+
+	# Substring fallback: "ac" in "portable air conditioning" won't work,
+	# but "washer" in "washer/dryer" will.
+	return any(required in amenity for amenity in listing_amenities_lower)
 
 
 def filter_search_results(
@@ -135,11 +170,11 @@ def filter_listings(
 			if listing.rating < constraints.min_rating:
 				continue
 
-		# Check required amenities (case-insensitive)
+		# Check required amenities (alias-aware, case-insensitive)
 		if constraints.required_amenities:
 			listing_amenities_lower: set[str] = {a.lower() for a in listing.amenities}
 			if not all(
-				req.lower() in listing_amenities_lower
+				_amenity_matches(req.lower(), listing_amenities_lower)
 				for req in constraints.required_amenities
 			):
 				continue

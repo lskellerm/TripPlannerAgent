@@ -138,6 +138,49 @@ class ListingWithCost(BaseModel):
 	)
 
 
+class ListingFailure(BaseModel):
+	"""Record of a listing that failed during batch exploration.
+
+	Captures the URL and a human-readable error message so the agent
+	can report which listings failed and why, rather than silently
+	returning an empty list.
+
+	Attributes:
+		url: Full URL of the Airbnb listing that failed.
+		error: Human-readable description of the failure reason.
+	"""
+
+	model_config = ConfigDict(frozen=True)
+
+	url: str = Field(description="Full URL of the Airbnb listing that failed.")
+	error: str = Field(description="Human-readable description of the failure reason.")
+
+
+class ExplorationResult(BaseModel):
+	"""Result of batch listing exploration with per-listing success/failure reporting.
+
+	Instead of silently returning only successful listings and hiding
+	all failures, this model provides the agent with structured
+	diagnostic information about which listings succeeded and which
+	failed (and why).
+
+	Attributes:
+		succeeded: Listings that were successfully parsed with cost data.
+		failed: Listings that failed during exploration, with error details.
+	"""
+
+	model_config = ConfigDict(frozen=True)
+
+	succeeded: list[ListingWithCost] = Field(
+		default_factory=list,
+		description="Listings that were successfully parsed with cost data.",
+	)
+	failed: list[ListingFailure] = Field(
+		default_factory=list,
+		description="Listings that failed during exploration, with error details.",
+	)
+
+
 class WeekAnalysis(BaseModel):
 	"""Per-week analysis results with categorical best-pick rankings.
 

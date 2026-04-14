@@ -16,7 +16,7 @@ from types import CoroutineType
 from typing import Any, Union
 from urllib.parse import ParseResult, parse_qs, urlencode, urlparse, urlunparse
 
-from logfire import warning
+from logfire import info, warning
 from playwright.async_api import (
 	Browser,
 	BrowserContext,
@@ -24,7 +24,13 @@ from playwright.async_api import (
 	async_playwright,
 )
 
-from src.airbnb.schemas import AirbnbListing, CostBreakdown, ListingWithCost
+from src.airbnb.schemas import (
+	AirbnbListing,
+	CostBreakdown,
+	ExplorationResult,
+	ListingFailure,
+	ListingWithCost,
+)
 from src.airbnb.tools.parsers import parse_booking_price, parse_listing_details
 from src.core.config import settings
 
@@ -87,16 +93,31 @@ async def _explore_single_listing(
 	check_out: str,
 	num_people: int,
 	num_nights: int,
-) -> Union[ListingWithCost, None]:
-	"""Explore a single listing in an isolated browser context.
+) -> Union[ListingWithCost, ListingFailure]:
+	"""Explore a single listing via its listing page and booking page.
 
-	Opens the listing page, waits for content to load, extracts the
-	full HTML, then parses listing details and booking price from it.
+	Two-page strategy:
+
+	1. **Listing page** — Navigate to the listing URL (with date/guest
+	   query params), wait for the booking sidebar to hydrate, then
+	   capture the HTML and parse listing details (title, amenities,
+	   ratings, etc.) via :func:`parse_listing_details`.
+
+	2. **Booking page** — Click the "Reserve" button
+	   (``data-testid="homes-pdp-cta-btn"``) to navigate to Airbnb's
+	   "Confirm and pay" checkout page, wait for the price breakdown
+	   to render (``data-testid="pd-value-TOTAL"``), capture the HTML,
+	   and parse the total cost via :func:`parse_booking_price`.
+
+	This two-page approach is necessary because
+	``parse_booking_price`` expects the structured price elements
+	(``pd-value-TOTAL``, ``pd-title-ACCOMMODATION``, etc.) that only
+	appear on the booking/checkout page — *not* the listing page.
 
 	The URL is enriched with ``check_in``/``check_out``/``adults``
 	query parameters so that Airbnb renders pricing on the listing
 	page.  Without dates the page shows "Add dates for prices" and
-	no total cost can be extracted.
+	the Reserve button may be absent.
 
 	Args:
 		browser: Shared Playwright browser instance.
@@ -108,8 +129,8 @@ async def _explore_single_listing(
 		num_nights: Number of nights for the stay.
 
 	Returns:
-		A ``ListingWithCost`` if parsing succeeds, or ``None`` on
-		failure.
+		A ``ListingWithCost`` on success, or ``ListingFailure`` with
+		the URL and error message on failure.
 	"""
 	context: Union[BrowserContext, None] = None
 	try:
@@ -125,39 +146,110 @@ async def _explore_single_listing(
 		# Ensure the URL has date params so Airbnb renders pricing
 		full_url: str = _ensure_date_params(url, check_in, check_out, num_people)
 
-		await page.goto(full_url, wait_until="domcontentloaded", timeout=30000)
-		# Attempt networkidle but proceed on timeout — Airbnb pages often
-		# have persistent connections (analytics, WebSockets) that prevent
-		# networkidle from ever firing  The domcontent.loaded event is
-		# sufficient for HTML data extraction since listing metadata lives
-		# in embedded <script> tags (JSON-LD / bootstrap data).
+		# ── Step 1: Listing page ──────────────────────────────────
+		# Use "load" to wait for all sub-resources (scripts, styles) —
+		# DOMContentLoaded fires too early for React hydration.
+		# networkidle is unreliable because Airbnb keeps persistent
+		# analytics/WebSocket connections open.
+		await page.goto(full_url, wait_until="load", timeout=30000)
+		info("Loaded listing page: {url}", url=full_url)
+
+		# Wait for the booking sidebar to hydrate — it contains the
+		# Reserve button we need to click next.
 		try:
-			await page.wait_for_load_state("networkidle", timeout=15000)
+			await page.wait_for_selector(
+				'[data-testid="book-it-default"]',
+				timeout=8000,
+			)
+			info("Booking sidebar loaded for {url}", url=full_url)
 		except Exception:
-			# Log and ignore timeout errors from networkidle waits
-			warning(
-				"networkidle wait timed out for {url}, proceeding with DOMContentLoaded",
-				url=full_url,
-				_exc_info=True,
+			# Booking sidebar selector not found — some page layouts
+			# differ. Fall back to waiting for any price-like text
+			# (e.g. "$X x N nights") which indicates React has rendered
+			# the pricing widget.
+			info(
+				"Booking sidebar not found for {url}, waiting for price text instead",
+			)
+			try:
+				await page.wait_for_selector(
+					"text=/\\$[\\d,]+\\s*(x|×|for)\\s*\\d+\\s*night/i",
+					timeout=5000,
+				)
+				info("Price text loaded for {url}", url=full_url)
+			except Exception:
+				warning(
+					"Pricing selector wait timed out for {url}, "
+					"proceeding with available content",
+					url=full_url,
+				)
+
+		# Capture listing page HTML for listing details extraction
+		listing_html: str = await page.content()
+		listing: AirbnbListing = parse_listing_details(
+			location=location, page_html=listing_html
+		)
+
+		# ── Step 2: Booking page ──────────────────────────────────
+		# Click the Reserve button to navigate to the checkout page
+		# where parse_booking_price can find pd-value-TOTAL etc.
+		reserve_selector: str = '[data-testid="homes-pdp-cta-btn"]'
+		try:
+			await page.wait_for_selector(reserve_selector, timeout=5000)
+		except Exception:
+			return ListingFailure(
+				url=url,
+				error=(
+					"Reserve button not found — listing may be unavailable "
+					"for the selected dates"
+				),
 			)
 
-		html: str = await page.content()
+		await page.click(reserve_selector)
+		info("Clicked Reserve for {url}", url=full_url)
 
-		# Parse listing details and booking price from the same HTML
-		listing: AirbnbListing = parse_listing_details(
-			location=location, page_html=html
+		# Wait for the booking/checkout page to render its price
+		# breakdown.  The primary indicator is pd-value-TOTAL; fall
+		# back to the "Price details" heading text.
+		try:
+			await page.wait_for_selector(
+				'[data-testid="pd-value-TOTAL"]',
+				timeout=15000,
+			)
+			info("Booking page price loaded for {url}", url=full_url)
+		except Exception:
+			try:
+				await page.wait_for_selector(
+					"text=/Price details/i",
+					timeout=5000,
+				)
+				info(
+					"Booking page 'Price details' loaded for {url}",
+					url=full_url,
+				)
+			except Exception:
+				warning(
+					"Booking page selectors timed out for {url}, "
+					"proceeding with available content",
+					url=full_url,
+				)
+
+		# Capture booking page HTML for price extraction
+		booking_html: str = await page.content()
+		cost: CostBreakdown = parse_booking_price(
+			page_html=booking_html, num_people=num_people
 		)
-		cost: CostBreakdown = parse_booking_price(page_html=html, num_people=num_people)
 
 		return ListingWithCost(listing=listing, cost_breakdown=cost)
-	except Exception:
-		# Individual listing failures should not crash the batch
+	except Exception as exc:
+		# Individual listing failures should not crash the batch —
+		# capture the error for structured reporting.
+		error_msg: str = f"{type(exc).__name__}: {exc}"
 		warning(
-			"Failed to explore listing {url}",
+			"Failed to explore listing {url}: {error}",
 			url=url,
-			_exc_info=True,
+			error=error_msg,
 		)
-		return None
+		return ListingFailure(url=url, error=error_msg)
 	finally:
 		if context is not None:
 			await context.close()
@@ -173,7 +265,7 @@ async def _explore_with_semaphore(
 	num_people: int,
 	num_nights: int,
 	index: int,
-) -> Union[ListingWithCost, None]:
+) -> Union[ListingWithCost, ListingFailure]:
 	"""Rate-limited wrapper around single-listing exploration.
 
 	Uses a semaphore to limit concurrent browser contexts and adds a
@@ -191,12 +283,13 @@ async def _explore_with_semaphore(
 		index: Position in the batch (for stagger delay calculation).
 
 	Returns:
-		A ``ListingWithCost`` if parsing succeeds, or ``None``.
+		A ``ListingWithCost`` on success, or ``ListingFailure`` on
+		failure.
 	"""
 	async with semaphore:
-		# Stagger requests to avoid burst-loading
+		# Constant delay between requests to respect Airbnb rate limits
 		if index > 0:
-			await asyncio.sleep(_PAGE_LOAD_DELAY * index)
+			await asyncio.sleep(_PAGE_LOAD_DELAY)
 		return await _explore_single_listing(
 			browser, url, location, check_in, check_out, num_people, num_nights
 		)
@@ -209,7 +302,7 @@ async def explore_listings(
 	check_out: str,
 	num_people: int,
 	num_nights: int,
-) -> list[ListingWithCost]:
+) -> ExplorationResult:
 	"""Explore multiple Airbnb listings in parallel.
 
 	Launches a headless Chromium browser and opens each listing URL in
@@ -231,8 +324,10 @@ async def explore_listings(
 		num_nights: Number of nights for the stay.
 
 	Returns:
-		A list of successfully parsed ``ListingWithCost`` objects.
-		Failed listings are silently skipped.
+		An ``ExplorationResult`` containing ``succeeded`` (list of
+		``ListingWithCost``) and ``failed`` (list of
+		``ListingFailure`` with URL and error message for each
+		listing that could not be parsed).
 
 	Raises:
 		ValueError: If ``urls`` is empty or ``num_people`` < 1 or
@@ -247,13 +342,15 @@ async def explore_listings(
 
 	max_concurrent: int = settings.MAX_CONCURRENT_BROWSERS
 
-	results: list[Union[ListingWithCost, None]] = []
+	results: list[Union[ListingWithCost, ListingFailure]] = []
 
 	async with async_playwright() as pw:
 		browser: Browser = await pw.chromium.launch(headless=True)
 		try:
 			semaphore = asyncio.Semaphore(max_concurrent)
-			tasks: list[CoroutineType[Any, Any, ListingWithCost | None]] = [
+			tasks: list[
+				CoroutineType[Any, Any, Union[ListingWithCost, ListingFailure]]
+			] = [
 				_explore_with_semaphore(
 					semaphore,
 					browser,
@@ -267,9 +364,26 @@ async def explore_listings(
 				)
 				for i, url in enumerate(urls)
 			]
-			results: list[ListingWithCost | None] = await asyncio.gather(*tasks)
+			results: list[
+				Union[ListingWithCost, ListingFailure]
+			] = await asyncio.gather(*tasks)
 		finally:
 			await browser.close()
 
-	# Filter out failures
-	return [r for r in results if r is not None]
+	# Partition into successes and failures
+	succeeded: list[ListingWithCost] = []
+	failed: list[ListingFailure] = []
+	for result in results:
+		if isinstance(result, ListingWithCost):
+			succeeded.append(result)
+		else:
+			failed.append(result)
+
+	info(
+		"Exploration complete: {n_success}/{n_total} succeeded, {n_failed} failed",
+		n_success=len(succeeded),
+		n_total=len(urls),
+		n_failed=len(failed),
+	)
+
+	return ExplorationResult(succeeded=succeeded, failed=failed)
