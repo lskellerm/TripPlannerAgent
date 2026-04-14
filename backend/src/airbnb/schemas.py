@@ -181,6 +181,96 @@ class ExplorationResult(BaseModel):
 	)
 
 
+class ConstraintViolation(BaseModel):
+	"""A single constraint check that a listing failed.
+
+	Attributes:
+		constraint: Name of the constraint that was violated (e.g.,
+			``"min_bedrooms"``, ``"required_amenities"``).
+		reason: Human-readable explanation of why the listing failed
+			(e.g., ``"Has 2 bedrooms, need at least 3"``).
+	"""
+
+	model_config = ConfigDict(frozen=True)
+
+	constraint: str = Field(
+		description="Name of the constraint that was violated.",
+	)
+	reason: str = Field(
+		description="Human-readable explanation of the violation.",
+	)
+
+
+class ConstraintResult(BaseModel):
+	"""Per-listing constraint verification result.
+
+	Shows whether a listing passes all constraints and, if not, which
+	specific constraints were violated.  This replaces the binary
+	pass/fail of ``filter_listings`` with transparent diagnostics
+	the agent can report to the user.
+
+	Attributes:
+		listing: The listing with its cost breakdown.
+		passed: ``True`` if the listing satisfies all constraints.
+		violations: List of constraint violations (empty if passed).
+	"""
+
+	model_config = ConfigDict(frozen=True)
+
+	listing: ListingWithCost = Field(
+		description="The listing with its cost breakdown.",
+	)
+	passed: bool = Field(
+		description="True if the listing satisfies all constraints.",
+	)
+	violations: list[ConstraintViolation] = Field(
+		default_factory=list,
+		description="List of constraint violations (empty if passed).",
+	)
+
+
+class ExplorationWithAnalysis(BaseModel):
+	"""Enriched exploration result with integrated constraint verification and ranking.
+
+	Combines the exploration results with per-listing constraint
+	verification and categorical ranking in a single return value.
+	This eliminates the need for a separate filter + rank step,
+	reducing token usage by avoiding re-serialization of all
+	listings in a subsequent tool call.
+
+	Attributes:
+		succeeded: Listings that were successfully parsed with cost data.
+		failed: Listings that failed during exploration, with error details.
+		constraint_results: Per-listing pass/fail with violation details.
+		passed_listings: Listings that passed all constraint checks.
+		rankings: Best listing in each category (price, value, amenities,
+			location, reviews) — ranked from ``passed_listings`` only.
+	"""
+
+	model_config = ConfigDict(frozen=True)
+
+	succeeded: list[ListingWithCost] = Field(
+		default_factory=list,
+		description="Listings that were successfully parsed with cost data.",
+	)
+	failed: list[ListingFailure] = Field(
+		default_factory=list,
+		description="Listings that failed during exploration, with error details.",
+	)
+	constraint_results: list[ConstraintResult] = Field(
+		default_factory=list,
+		description="Per-listing pass/fail with violation details.",
+	)
+	passed_listings: list[ListingWithCost] = Field(
+		default_factory=list,
+		description="Listings that passed all constraint checks.",
+	)
+	rankings: dict[str, Union[ListingWithCost, None]] = Field(
+		default_factory=dict,
+		description="Best listing in each category (ranked from passed listings).",
+	)
+
+
 class WeekAnalysis(BaseModel):
 	"""Per-week analysis results with categorical best-pick rankings.
 
