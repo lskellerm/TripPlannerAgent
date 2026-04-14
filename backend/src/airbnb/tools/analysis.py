@@ -13,6 +13,8 @@ from src.agent.schemas import TripWeek
 from src.airbnb.constants import AMENITY_ALIASES
 from src.airbnb.schemas import (
 	AirbnbListing,
+	ConstraintResult,
+	ConstraintViolation,
 	CostBreakdown,
 	ListingWithCost,
 	WeekAnalysis,
@@ -128,76 +130,147 @@ def filter_search_results(
 	return matched
 
 
-def filter_listings(
+def verify_constraints(
 	listings: list[ListingWithCost],
 	constraints: TripWeek,
-) -> list[ListingWithCost]:
-	"""Filter listings that match the given trip week constraints.
+) -> list[ConstraintResult]:
+	"""Verify each listing against trip week constraints with detailed diagnostics.
 
-	Checks each listing against minimum bedrooms, minimum bathrooms,
-	minimum rating, required amenities, neighbourhood preferences, and
-	maximum price per person.
+	Returns a ``ConstraintResult`` per listing
+	showing pass/fail status and specific violation reasons.
+
+	This gives the agent transparent feedback to report to the user.
+
+	Checked constraints:
+		- ``min_bedrooms`` — requires known bedroom count.
+		- ``min_bathrooms`` — requires known bathroom count.
+		- ``min_rating`` — requires known rating.
+		- ``required_amenities`` — alias-aware, case-insensitive.
+		- ``neighborhood_constraints`` — case-insensitive substring match.
+		- ``max_price_per_person`` — from cost breakdown.
 
 	Args:
 		listings: Candidate listings with cost breakdowns.
-		constraints: The trip week constraints to filter against.
+		constraints: The trip week constraints to verify against.
 
 	Returns:
-		A new list containing only listings that satisfy all constraints.
+		A list of ``ConstraintResult`` objects, one per input listing.
 	"""
-	matched: list[ListingWithCost] = []
+	results: list[ConstraintResult] = []
 
 	for lwc in listings:
 		listing: AirbnbListing = lwc.listing
 		cost: CostBreakdown = lwc.cost_breakdown
+		violations: list[ConstraintViolation] = []
 
-		# Check minimum bedrooms. Missing data cannot satisfy a required constraint.
+		# Check minimum bedrooms
 		if listing.num_bedrooms is None:
-			continue
-		if listing.num_bedrooms < constraints.min_bedrooms:
-			continue
+			violations.append(
+				ConstraintViolation(
+					constraint="min_bedrooms",
+					reason=f"Bedroom count unknown, need at least {constraints.min_bedrooms}",
+				)
+			)
+		elif listing.num_bedrooms < constraints.min_bedrooms:
+			violations.append(
+				ConstraintViolation(
+					constraint="min_bedrooms",
+					reason=f"Has {listing.num_bedrooms} bedrooms, need at least {constraints.min_bedrooms}",
+				)
+			)
 
-		# Check minimum bathrooms. Missing data cannot satisfy a required constraint.
+		# Check minimum bathrooms
 		if listing.num_bathrooms is None:
-			continue
-		if listing.num_bathrooms < constraints.min_bathrooms:
-			continue
+			violations.append(
+				ConstraintViolation(
+					constraint="min_bathrooms",
+					reason=f"Bathroom count unknown, need at least {constraints.min_bathrooms}",
+				)
+			)
+		elif listing.num_bathrooms < constraints.min_bathrooms:
+			violations.append(
+				ConstraintViolation(
+					constraint="min_bathrooms",
+					reason=f"Has {listing.num_bathrooms} bathrooms, need at least {constraints.min_bathrooms}",
+				)
+			)
 
 		# Check minimum rating
-		if constraints.min_rating > 0 and listing.rating is None:
-			continue
-		if listing.rating is not None:
-			if listing.rating < constraints.min_rating:
-				continue
+		if constraints.min_rating > 0:
+			if listing.rating is None:
+				violations.append(
+					ConstraintViolation(
+						constraint="min_rating",
+						reason=f"Rating unknown, need at least {constraints.min_rating}",
+					)
+				)
+			elif listing.rating < constraints.min_rating:
+				violations.append(
+					ConstraintViolation(
+						constraint="min_rating",
+						reason=f"Rating is {listing.rating}, need at least {constraints.min_rating}",
+					)
+				)
 
-		# Check required amenities (alias-aware, case-insensitive)
+		# Check required amenities
 		if constraints.required_amenities:
 			listing_amenities_lower: set[str] = {a.lower() for a in listing.amenities}
-			if not all(
-				_amenity_matches(req.lower(), listing_amenities_lower)
+			missing: list[str] = [
+				req
 				for req in constraints.required_amenities
-			):
-				continue
+				if not _amenity_matches(req.lower(), listing_amenities_lower)
+			]
+			if missing:
+				violations.append(
+					ConstraintViolation(
+						constraint="required_amenities",
+						reason=f"Missing amenities: {', '.join(missing)}",
+					)
+				)
 
-		# Check neighbourhood constraints (case-insensitive)
+		# Check neighbourhood constraints
 		if constraints.neighborhood_constraints:
 			if listing.neighborhood is None:
-				continue
+				violations.append(
+					ConstraintViolation(
+						constraint="neighborhood",
+						reason="Neighborhood unknown, required one of: "
+						+ ", ".join(constraints.neighborhood_constraints),
+					)
+				)
+			else:
+				neighborhood_lower: str = listing.neighborhood.lower()
+				if not any(
+					n.lower() in neighborhood_lower
+					for n in constraints.neighborhood_constraints
+				):
+					violations.append(
+						ConstraintViolation(
+							constraint="neighborhood",
+							reason=f"In '{listing.neighborhood}', required one of: "
+							+ ", ".join(constraints.neighborhood_constraints),
+						)
+					)
 
-			neighborhood_lower: str = listing.neighborhood.lower()
-			if not any(
-				n.lower() in neighborhood_lower
-				for n in constraints.neighborhood_constraints
-			):
-				continue
 		# Check max price per person
 		if constraints.max_price_per_person is not None:
 			if cost.cost_per_person > constraints.max_price_per_person:
-				continue
+				violations.append(
+					ConstraintViolation(
+						constraint="max_price_per_person",
+						reason=f"Cost per person ${cost.cost_per_person:.2f} exceeds budget ${constraints.max_price_per_person:.2f}",
+					)
+				)
 
-		matched.append(lwc)
+		results.append(
+			ConstraintResult(
+				listing=lwc,
+				passed=len(violations) == 0,
+				violations=violations,
+			)
+		)
 
-	return matched
+	return results
 
 
 def calculate_cost_breakdown(
