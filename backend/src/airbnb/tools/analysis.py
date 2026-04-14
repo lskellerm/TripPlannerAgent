@@ -27,11 +27,14 @@ def _amenity_matches(
 ) -> bool:
 	"""Check whether a required amenity is satisfied by the listing.
 
-	First checks the alias map for known short-hand names.  If aliases
-	exist, returns ``True`` when *any* alias appears in the listing's
-	amenity set.  Otherwise falls back to substring matching — returns
-	``True`` if the required string is a substring of any listed
-	amenity.
+	First checks the alias map for known short-hand names using
+	**substring matching** — returns ``True`` when any alias appears
+	as a substring of any listed amenity.  This handles Airbnb's
+	verbose amenity descriptions (e.g. ``"AC - split type ductless
+	system"`` matching alias ``"ac -"``).
+
+	Falls back to exact set membership and then substring matching
+	with the raw *required* name.
 
 	Args:
 		required: The required amenity name (already lower-cased).
@@ -41,17 +44,22 @@ def _amenity_matches(
 	Returns:
 		``True`` if the listing satisfies the required amenity.
 	"""
-	# Check alias map first
+	# Check alias map first — substring matching so "air conditioning"
+	# matches "central air conditioning" and "ac -" matches
+	# "ac - split type ductless system".
 	aliases: Union[list[str], None] = AMENITY_ALIASES.get(required)
 	if aliases is not None:
-		return any(alias in listing_amenities_lower for alias in aliases)
+		if any(
+			alias in amenity for alias in aliases for amenity in listing_amenities_lower
+		):
+			return True
 
 	# Exact set membership
 	if required in listing_amenities_lower:
 		return True
 
-	# Substring fallback: "ac" in "portable air conditioning" won't work,
-	# but "washer" in "washer/dryer" will.
+	# Substring fallback — works for cases like "washer" matching
+	# "free washer – in building".
 	return any(required in amenity for amenity in listing_amenities_lower)
 
 

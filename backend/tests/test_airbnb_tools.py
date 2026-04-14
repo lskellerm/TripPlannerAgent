@@ -1300,6 +1300,74 @@ class TestVerifyConstraints:
 		assert len(results) == 1
 		assert results[0].passed
 
+	def test_amenity_alias_ac_matches_split_type_ductless(
+		self,
+		cost_a: CostBreakdown,
+	) -> None:
+		"""Short-hand 'AC' matches 'AC - split type ductless system' via alias substring."""
+		listing = AirbnbListing(
+			url="https://www.airbnb.com/rooms/555",
+			title="Test ductless AC",
+			total_cost=500.0,
+			nightly_rate=71.43,
+			num_beds=2,
+			num_bedrooms=2,
+			num_bathrooms=2,
+			amenities=["AC - split type ductless system", "Wifi"],
+			neighborhood="Roma Norte",
+			rating=4.9,
+			num_reviews=50,
+		)
+		lwc = ListingWithCost(listing=listing, cost_breakdown=cost_a)
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=1,
+			min_bathrooms=1,
+			required_amenities=["AC"],
+		)
+		results: list[ConstraintResult] = verify_constraints([lwc], constraints)
+		assert len(results) == 1
+		assert results[0].passed
+
+	def test_amenity_alias_wifi_matches_fast_wifi(
+		self,
+		cost_a: CostBreakdown,
+	) -> None:
+		"""Short-hand 'wifi' matches 'Fast wifi – 302 Mbps' via alias substring."""
+		listing = AirbnbListing(
+			url="https://www.airbnb.com/rooms/666",
+			title="Test fast wifi",
+			total_cost=500.0,
+			nightly_rate=71.43,
+			num_beds=2,
+			num_bedrooms=2,
+			num_bathrooms=2,
+			amenities=["Fast wifi \u2013 302 Mbps", "Air conditioning"],
+			neighborhood="Roma Norte",
+			rating=4.9,
+			num_reviews=50,
+		)
+		lwc = ListingWithCost(listing=listing, cost_breakdown=cost_a)
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=1,
+			min_bathrooms=1,
+			required_amenities=["wifi"],
+		)
+		results: list[ConstraintResult] = verify_constraints([lwc], constraints)
+		assert len(results) == 1
+		assert results[0].passed
+
 	def test_amenity_alias_wifi_matches_wi_fi(
 		self,
 		cost_a: CostBreakdown,

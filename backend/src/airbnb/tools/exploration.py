@@ -206,7 +206,25 @@ async def _explore_single_listing(
 				),
 			)
 
-		await page.click(reserve_selector)
+		# Use JavaScript click to bypass Airbnb's sticky header/footer
+		# overlays that prevent Playwright's actionability checks from
+		# scrolling the Reserve button into the visible viewport.
+		# Standard page.click() fails with "element is outside of the
+		# viewport" on ~40% of listings due to these fixed overlays.
+		clicked: bool = await page.evaluate(
+			"""() => {
+				const btn = document.querySelector('[data-testid="homes-pdp-cta-btn"]');
+				if (!btn) return false;
+				btn.scrollIntoView({block: 'center'});
+				btn.click();
+				return true;
+			}"""
+		)
+		if not clicked:
+			return ListingFailure(
+				url=url,
+				error="Reserve button found but could not be clicked",
+			)
 		info("Clicked Reserve for {url}", url=full_url)
 
 		# Wait for the booking/checkout page to render its price
