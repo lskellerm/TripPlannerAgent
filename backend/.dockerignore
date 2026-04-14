@@ -20,6 +20,8 @@ docs/
 .env.example
 .logfire/
 Dockerfile
+tests/
+tripplanner.db
 
 .playwright-mcp/
 search_page.html
