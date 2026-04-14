@@ -4,6 +4,7 @@ import re
 from re import Pattern
 
 __all__: list[str] = [
+	"AIRBNB_AMENITY_IDS",
 	"AIRBNB_ROOMS_PREFIX",
 	"BATHS_PATTERN",
 	"BEDROOMS_PATTERN",
@@ -264,4 +265,31 @@ AMENITY_ALIASES: dict[str, list[str]] = {
 	"kitchen": ["kitchen", "full kitchen", "kitchenette"],
 	"tv": ["tv", "hdtv", "television"],
 	"heating": ["heating", "central heating", "radiant heating"],
+}
+
+
+# ── Airbnb URL Filter Amenity IDs ──
+# Mapping of amenity short-hand names to the numeric IDs that Airbnb
+# accepts as ``amenities[]`` query parameters in search URLs.  These
+# IDs correspond to Airbnb's internal amenity filter identifiers
+# visible in the filter modal's network requests.
+# Using these enables *server-side* pre-filtering — Airbnb only
+# returns listings that have the amenity, dramatically reducing the
+# number of irrelevant results.
+AIRBNB_AMENITY_IDS: dict[str, int] = {
+	"wifi": 4,
+	"wi-fi": 4,
+	"kitchen": 8,
+	"washer": 33,
+	"dryer": 34,
+	"ac": 5,
+	"air conditioning": 5,
+	"heating": 30,
+	"tv": 58,
+	"pool": 7,
+	"hot tub": 25,
+	"gym": 15,
+	"parking": 9,
+	"elevator": 21,
+	"self check-in": 51,
 }
