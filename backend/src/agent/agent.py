@@ -45,13 +45,13 @@ from src.airbnb.tools import (
 	build_search_url,
 	calculate_trip_totals,
 	explore_listings,
-	filter_listings,
 	filter_search_results,
 	parse_booking_price,
 	parse_listing_details,
 	parse_listing_page,
 	parse_search_results,
 	rank_by_category,
+	verify_constraints,
 )
 from src.core.config import settings
 from src.core.utils import configure_logfire
@@ -101,6 +101,13 @@ Follow these steps when the user asks you to plan a trip or find Airbnb listings
 
 1. **Build Search URL** — Call `build_search_url(location, check_in, check_out,
    number_of_adults)` to construct a properly formatted Airbnb search URL.
+   **Pass pre-filter parameters** to narrow results at the source:
+   - `min_bedrooms`, `min_bathrooms`, `min_beds` — room requirements
+   - `required_amenities` — list of amenity short-names (e.g.
+     `["wifi", "ac", "kitchen", "washer"]`)
+   - `room_type` — one of `"entire_home"`, `"private_room"`, `"shared_room"`
+   - `price_min`, `price_max` — nightly price range in USD
+   This dramatically reduces irrelevant results.
 
 2. **Navigate to Search Page** — Use `browser_navigate(url)` to load the URL.
 
@@ -114,7 +121,8 @@ Follow these steps when the user asks you to plan a trip or find Airbnb listings
    This saves rendered HTML to disk.  You receive a confirmation, NOT the HTML.
 
 5. **Parse Search Results** — Call `parse_search_results(html_file="search_page.html")`
-   to extract listings with preview data (title, price, rating, URL).
+   to extract listings with preview data (title, price, rating, beds,
+   bedrooms, bathrooms, URL).
 
 6. **Pre-filter Search Results** — Call `filter_search_results(listings, constraints)`
    with a ``TripWeek`` to eliminate listings that clearly don't match
@@ -124,22 +132,24 @@ Follow these steps when the user asks you to plan a trip or find Airbnb listings
    on empty results.
 
 7. **Explore Listings** — Call `explore_listings(urls, location, check_in,
-   check_out, num_people, num_nights)` with the top listing URLs from Step 6
-   (max 5).  **You MUST pass `check_in` and `check_out` dates** — without
-   them Airbnb shows "Add dates for prices" and the price parser fails.
-   This tool opens each listing in parallel browser instances, extracts
-   details and booking prices in a single page load per listing.
-   Returns an `ExplorationResult` with two fields:
-   - `succeeded`: list of `ListingWithCost` objects (use these for filtering/ranking)
-   - `failed`: list of `ListingFailure` objects with `url` and `error` fields
-   If some listings failed, mention this to the user and proceed with the
-   successful ones.  Do NOT manually re-navigate failed listings — the
-   error messages explain why they failed.
+   check_out, num_people, num_nights, search_listings, constraints)`:
+   - **`search_listings`**: Pass the parsed search-card listings from Step 5
+     to backfill fields (num_reviews, bathrooms, rating) that the listing
+     detail page may not include.
+   - **`constraints`**: Pass the ``TripWeek`` to get automatic constraint
+     verification and categorical ranking built into the return value.
+   When constraints are provided, returns an `ExplorationWithAnalysis` with:
+   - `succeeded`: all explored `ListingWithCost` objects
+   - `failed`: list of `ListingFailure` with `url` and `error`
+   - `constraint_results`: per-listing pass/fail with violation reasons
+   - `passed_listings`: only listings that satisfy all constraints
+   - `rankings`: best pick per category (price, value, amenities, location, reviews)
+   This eliminates the need for separate filter + rank calls.
 
-8. **Filter & Rank (parallel)** — Call BOTH in the same turn:
-   - `filter_listings(listings, constraints)` — validates bedrooms,
-     bathrooms, rating, amenities, neighbourhood, budget
-   - `rank_by_category(listings)` — picks best in each category
+8. **Present Results** — Summarise the exploration results to the user.
+   If any listings failed, mention why briefly.  Show the rankings and
+   highlight constraint violations for failed listings so the user
+   understands why they were excluded.
 
 9. **Multi-week Trip Totals** — For multi-week trips, use
     `calculate_trip_totals(week_analyses, participant_names)` to compute
@@ -166,13 +176,13 @@ snapshots are YAML accessibility trees, not HTML.
 | Listing unavailable | Skip immediately, move to next |
 | 404 / error page | Skip immediately, never retry same listing |
 | Parsing failure | Log, skip, continue |
-| 3 consecutive failures | STOP exploring, proceed to Step 8 |
+| 3 consecutive failures | STOP exploring, proceed to results |
 | CAPTCHA / empty results | Inform user immediately |
 
 **Never fabricate data** — only use URLs from `parse_search_results`.
 **Never re-visit failed listings** — track attempted room IDs.
 If you catch yourself writing "let me try" more than twice, STOP — you
-are in a loop.  Proceed to Step 8 with whatever listings you have.
+are in a loop.  Proceed to results with whatever listings you have.
 
 ## Context Window Conservation
 
@@ -199,8 +209,6 @@ Report failures briefly: "**Step 7/9: Listing 3 returned 404, skipping…**"
 ## Parallel Tool Calls
 
 Request multiple independent tool calls in a single turn to save round trips.
-**Mandatory parallel batch:**
-- **Step 8:** `filter_listings` + `rank_by_category` — always together.
 
 **Never batch browser tools** — they share a single browser instance and
 must run sequentially.
@@ -210,7 +218,6 @@ must run sequentially.
 - Wait at least 5 seconds between Airbnb page loads.
 - Present results with: title, nightly rate, total cost, cost per person,
   rating, reviews, key amenities.
-- Always run filtering (Step 8) even without explicit user constraints.
 - For multi-week trips, show per-person costs across weeks.
 - Tool outputs are intermediate data — process and continue.  Only respond
   to user messages conversationally.
@@ -284,6 +291,9 @@ Airbnb-domain tools for URL construction, HTML parsing, filtering,
 cost computation, and categorical ranking.
 
 - **URL builders**: `build_search_url`, `build_listing_url`
+  - `build_search_url` accepts pre-filter params: `min_bedrooms`,
+    `min_bathrooms`, `min_beds`, `required_amenities`, `room_type`,
+    `price_min`, `price_max` — pass these to reduce irrelevant results.
 - **HTML parsers**: `parse_search_results`, `parse_listing_details`,
   `parse_booking_price`, `parse_listing_page` — accept `html_file`
   (filename from `browser_evaluate`) or `page_html` (raw string).
@@ -291,13 +301,18 @@ cost computation, and categorical ranking.
 - **Pre-filter**: `filter_search_results` — lightweight filter on search
   preview data BEFORE exploration (neighbourhood, bedrooms, rating, budget).
   Optimistic: unknown data passes through.
-- **Batch exploration**: `explore_listings` — opens listings in parallel so Airbnb renders pricing for the specified dates.
-  Extracts details + booking price in one page load per listing.
-  Returns an `ExplorationResult` with `succeeded` (list of `ListingWithCost`)
-  and `failed` (list of `ListingFailure` with `url` and `error`).  Use
-  `result.succeeded` for filtering/ranking.
-- **Analysis**: `filter_listings`, `rank_by_category`,
-  `calculate_trip_totals`
+- **Batch exploration**: `explore_listings` — opens listings in parallel
+  browser instances so Airbnb renders pricing for the specified dates.
+  Pass `search_listings` (from `parse_search_results`) to backfill fields
+  like `num_reviews`, `num_bathrooms`, `rating` that the detail page may miss.
+  Pass `constraints` (a `TripWeek`) to get automatic constraint verification
+  and categorical ranking — returns `ExplorationWithAnalysis` with
+  `constraint_results`, `passed_listings`, and `rankings` built in.
+- **Constraint verification**: `verify_constraints` — checks each listing
+  against trip week constraints with per-constraint pass/fail reasons.
+  Normally called automatically by `explore_listings` when constraints
+  are provided.
+- **Analysis**: `rank_by_category`, `calculate_trip_totals`
 """
 
 airbnb_toolset: FunctionToolset = FunctionToolset(
@@ -310,7 +325,7 @@ airbnb_toolset: FunctionToolset = FunctionToolset(
 		Tool(parse_listing_page, takes_ctx=False),
 		Tool(filter_search_results, takes_ctx=False),
 		Tool(explore_listings, takes_ctx=False),
-		Tool(filter_listings, takes_ctx=False),
+		Tool(verify_constraints, takes_ctx=False),
 		Tool(calculate_trip_totals, takes_ctx=False),
 		Tool(rank_by_category, takes_ctx=False),
 	],

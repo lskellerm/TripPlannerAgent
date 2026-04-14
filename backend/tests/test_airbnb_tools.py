@@ -9,6 +9,7 @@ from pydantic_ai.exceptions import ModelRetry
 from src.agent.schemas import TripWeek
 from src.airbnb.schemas import (
 	AirbnbListing,
+	ConstraintResult,
 	CostBreakdown,
 	ListingWithCost,
 	WeekAnalysis,
@@ -16,8 +17,8 @@ from src.airbnb.schemas import (
 from src.airbnb.tools.analysis import (
 	calculate_cost_breakdown,
 	calculate_trip_totals,
-	filter_listings,
 	rank_by_category,
+	verify_constraints,
 )
 from src.airbnb.tools.parsers import (
 	_normalize_neighborhood,
@@ -215,18 +216,19 @@ class TestBuildSearchUrl:
 		assert url.startswith("https://www.airbnb.com/s/")
 		assert "Mexico%20City" in url
 		assert "adults=4" in url
-		assert "check_in=2026-05-02" in url
-		assert "check_out=2026-05-09" in url
+		assert "checkin=2026-05-02" in url
+		assert "checkout=2026-05-09" in url
 		assert "search_mode=regular_search" in url
-		assert "source_impression_id=" in url
 		assert "federated_search_id=" in url
-		assert "previous_page_section_name=1001" in url
+		assert "query=Mexico+City" in url or "query=Mexico%20City" in url
+		assert "refinement_paths" in url
+		assert "channel=EXPLORE" in url
 
-	def test_unique_impression_ids(self) -> None:
-		"""Each call generates different impression and search IDs."""
+	def test_unique_federated_ids(self) -> None:
+		"""Each call generates a different federated search ID."""
 		url1: str = build_search_url("CDMX", "2026-05-02", "2026-05-09", 2)
 		url2: str = build_search_url("CDMX", "2026-05-02", "2026-05-09", 2)
-		# Extract the impression IDs — they should differ
+		# Federated IDs should differ between calls
 		assert url1 != url2
 
 	def test_location_encoding(self) -> None:
@@ -246,6 +248,76 @@ class TestBuildSearchUrl:
 
 		with pytest.raises(ValueError, match="number_of_adults must be at least 1"):
 			build_search_url("CDMX", "2026-05-02", "2026-05-09", -1)
+
+	def test_min_bedrooms_param(self) -> None:
+		"""min_bedrooms adds min_bedrooms query param."""
+		url: str = build_search_url(
+			"CDMX", "2026-05-02", "2026-05-09", 2, min_bedrooms=3
+		)
+		assert "min_bedrooms=3" in url
+
+	def test_min_bathrooms_param(self) -> None:
+		"""min_bathrooms adds min_bathrooms query param."""
+		url: str = build_search_url(
+			"CDMX", "2026-05-02", "2026-05-09", 2, min_bathrooms=2
+		)
+		assert "min_bathrooms=2" in url
+
+	def test_min_beds_param(self) -> None:
+		"""min_beds adds min_beds query param."""
+		url: str = build_search_url("CDMX", "2026-05-02", "2026-05-09", 2, min_beds=4)
+		assert "min_beds=4" in url
+
+	def test_room_type_param(self) -> None:
+		"""room_type adds room_type query param."""
+		url: str = build_search_url(
+			"CDMX", "2026-05-02", "2026-05-09", 2, room_type="entire_home"
+		)
+		assert "room_types%5B%5D=Entire+home%2Fapt" in url or "room_types" in url
+
+	def test_price_range_params(self) -> None:
+		"""price_min and price_max add price query params."""
+		url: str = build_search_url(
+			"CDMX", "2026-05-02", "2026-05-09", 2, price_min=100, price_max=300
+		)
+		assert "price_min=100" in url
+		assert "price_max=300" in url
+		assert "price_filter_input_type=2" in url
+		assert "price_filter_num_nights=7" in url
+
+	def test_required_amenities_params(self) -> None:
+		"""required_amenities adds amenities[] query params."""
+		url: str = build_search_url(
+			"CDMX",
+			"2026-05-02",
+			"2026-05-09",
+			2,
+			required_amenities=["wifi", "ac", "kitchen"],
+		)
+		assert "amenities%5B%5D=" in url or "amenities[]=" in url
+
+	def test_amenities_deduplication(self) -> None:
+		"""Duplicate amenity IDs are deduplicated."""
+		url: str = build_search_url(
+			"CDMX",
+			"2026-05-02",
+			"2026-05-09",
+			2,
+			required_amenities=["wifi", "wifi"],
+		)
+		# Count occurrences of the wifi amenity ID (4)
+		assert url.count("amenities%5B%5D=4") == 1 or url.count("amenities[]=4") == 1
+
+	def test_unknown_amenity_ignored(self) -> None:
+		"""Unknown amenity names are silently ignored."""
+		url: str = build_search_url(
+			"CDMX",
+			"2026-05-02",
+			"2026-05-09",
+			2,
+			required_amenities=["nonexistent_amenity"],
+		)
+		assert "amenities" not in url
 
 
 class TestBuildListingUrl:
@@ -401,6 +473,50 @@ class TestParseSearchResults:
 		assert len(listings) == 1
 		assert listings[0].num_beds == 1
 		assert listings[0].num_bedrooms is None
+
+	def test_extracts_bathrooms_from_subtitle(self) -> None:
+		"""Parser extracts num_bathrooms from card subtitle elements."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/44444">
+				<div>
+					<h2>Spacious Flat</h2>
+					<span data-testid="listing-card-subtitle">3 bedrooms · 3 beds · 2 bathrooms</span>
+					<span>$200 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(
+			location="Mexico City", page_html=html
+		)
+		assert len(listings) == 1
+		assert listings[0].num_bedrooms == 3
+		assert listings[0].num_beds == 3
+		assert listings[0].num_bathrooms == 2.0
+
+	def test_extracts_half_bath_from_subtitle(self) -> None:
+		"""Parser extracts fractional bathroom count (e.g. 1.5 baths)."""
+		html = """
+		<html><body>
+		<div>
+			<a href="/rooms/55555">
+				<div>
+					<h2>Modern Loft</h2>
+					<span data-testid="listing-card-subtitle">2 bedrooms · 2 beds · 1.5 baths</span>
+					<span>$180 per night</span>
+				</div>
+			</a>
+		</div>
+		</body></html>
+		"""
+		listings: list[AirbnbListing] = parse_search_results(
+			location="Mexico City", page_html=html
+		)
+		assert len(listings) == 1
+		assert listings[0].num_bathrooms == 1.5
 
 	def test_extracts_location_from_card_title(self) -> None:
 		"""Parser extracts neighborhood from listing-card-title 'Apartment in City'."""
@@ -962,15 +1078,15 @@ class TestCalculateCostBreakdown:
 			calculate_cost_breakdown(total_cost=100.0, num_people=1, num_nights=0)
 
 
-class TestFilterListings:
-	"""Verify listing filtering against constraints."""
+class TestVerifyConstraints:
+	"""Verify listing constraint verification with diagnostic output."""
 
 	def test_all_pass(
 		self,
 		lwc_a: ListingWithCost,
 		lwc_b: ListingWithCost,
 	) -> None:
-		"""Listings matching all constraints are kept."""
+		"""Listings matching all constraints pass verification."""
 		constraints = TripWeek(
 			week_label="Test",
 			check_in=date(2026, 5, 2),
@@ -982,14 +1098,18 @@ class TestFilterListings:
 			min_bathrooms=1,
 			min_rating=4.0,
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_a, lwc_b], constraints)
-		assert len(result) == 2
+		results: list[ConstraintResult] = verify_constraints(
+			[lwc_a, lwc_b], constraints
+		)
+		assert len(results) == 2
+		assert all(r.passed for r in results)
+		assert all(len(r.violations) == 0 for r in results)
 
-	def test_filter_by_bedrooms(
+	def test_fails_by_bedrooms(
 		self,
 		lwc_a: ListingWithCost,
 	) -> None:
-		"""Listing with insufficient bedrooms is excluded."""
+		"""Listing with insufficient bedrooms fails with violation."""
 		constraints = TripWeek(
 			week_label="Test",
 			check_in=date(2026, 5, 2),
@@ -1000,14 +1120,17 @@ class TestFilterListings:
 			min_bedrooms=5,  # Listing A has 3
 			min_bathrooms=1,
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
-		assert len(result) == 0
+		results: list[ConstraintResult] = verify_constraints([lwc_a], constraints)
+		assert len(results) == 1
+		assert not results[0].passed
+		violations = results[0].violations
+		assert any(v.constraint == "min_bedrooms" for v in violations)
 
-	def test_filter_by_rating(
+	def test_fails_by_rating(
 		self,
 		lwc_a: ListingWithCost,
 	) -> None:
-		"""Listing below min rating is excluded."""
+		"""Listing below min rating fails with violation."""
 		constraints = TripWeek(
 			week_label="Test",
 			check_in=date(2026, 5, 2),
@@ -1019,14 +1142,16 @@ class TestFilterListings:
 			min_bathrooms=1,
 			min_rating=4.95,  # Listing A has 4.91
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
-		assert len(result) == 0
+		results: list[ConstraintResult] = verify_constraints([lwc_a], constraints)
+		assert len(results) == 1
+		assert not results[0].passed
+		assert any(v.constraint == "min_rating" for v in results[0].violations)
 
-	def test_filter_by_amenities(
+	def test_fails_by_amenities(
 		self,
 		lwc_a: ListingWithCost,
 	) -> None:
-		"""Listing missing required amenities is excluded."""
+		"""Listing missing required amenities fails with violation."""
 		constraints = TripWeek(
 			week_label="Test",
 			check_in=date(2026, 5, 2),
@@ -1038,14 +1163,16 @@ class TestFilterListings:
 			min_bathrooms=1,
 			required_amenities=["pool"],  # Listing A doesn't have a pool
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
-		assert len(result) == 0
+		results: list[ConstraintResult] = verify_constraints([lwc_a], constraints)
+		assert len(results) == 1
+		assert not results[0].passed
+		assert any(v.constraint == "required_amenities" for v in results[0].violations)
 
-	def test_filter_by_neighborhood(
+	def test_fails_by_neighborhood(
 		self,
 		lwc_b: ListingWithCost,
 	) -> None:
-		"""Listing in wrong neighbourhood is excluded."""
+		"""Listing in wrong neighbourhood fails with violation."""
 		constraints = TripWeek(
 			week_label="Test",
 			check_in=date(2026, 5, 2),
@@ -1057,14 +1184,16 @@ class TestFilterListings:
 			min_bedrooms=1,
 			min_bathrooms=1,
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_b], constraints)
-		assert len(result) == 0
+		results: list[ConstraintResult] = verify_constraints([lwc_b], constraints)
+		assert len(results) == 1
+		assert not results[0].passed
+		assert any(v.constraint == "neighborhood" for v in results[0].violations)
 
-	def test_filter_by_max_price(
+	def test_fails_by_max_price(
 		self,
 		lwc_a: ListingWithCost,
 	) -> None:
-		"""Listing exceeding max price per person is excluded."""
+		"""Listing exceeding max price per person fails with violation."""
 		constraints = TripWeek(
 			week_label="Test",
 			check_in=date(2026, 5, 2),
@@ -1076,10 +1205,14 @@ class TestFilterListings:
 			min_bathrooms=1,
 			max_price_per_person=300.0,  # Listing A cost_per_person = 385.67
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
-		assert len(result) == 0
+		results: list[ConstraintResult] = verify_constraints([lwc_a], constraints)
+		assert len(results) == 1
+		assert not results[0].passed
+		assert any(
+			v.constraint == "max_price_per_person" for v in results[0].violations
+		)
 
-	def test_amenity_check_case_insensitive(
+	def test_amenity_case_insensitive(
 		self,
 		lwc_a: ListingWithCost,
 	) -> None:
@@ -1095,8 +1228,9 @@ class TestFilterListings:
 			min_bathrooms=1,
 			required_amenities=["wi-fi"],  # Listing A has "Wi-Fi"
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
-		assert len(result) == 1
+		results: list[ConstraintResult] = verify_constraints([lwc_a], constraints)
+		assert len(results) == 1
+		assert results[0].passed
 
 	def test_amenity_alias_ac_matches_air_conditioning(
 		self,
@@ -1128,8 +1262,9 @@ class TestFilterListings:
 			min_bathrooms=1,
 			required_amenities=["AC"],
 		)
-		result: list[ListingWithCost] = filter_listings([lwc], constraints)
-		assert len(result) == 1
+		results: list[ConstraintResult] = verify_constraints([lwc], constraints)
+		assert len(results) == 1
+		assert results[0].passed
 
 	def test_amenity_alias_ac_matches_portable_air_conditioning(
 		self,
@@ -1161,8 +1296,9 @@ class TestFilterListings:
 			min_bathrooms=1,
 			required_amenities=["AC"],
 		)
-		result: list[ListingWithCost] = filter_listings([lwc], constraints)
-		assert len(result) == 1
+		results: list[ConstraintResult] = verify_constraints([lwc], constraints)
+		assert len(results) == 1
+		assert results[0].passed
 
 	def test_amenity_alias_wifi_matches_wi_fi(
 		self,
@@ -1194,8 +1330,9 @@ class TestFilterListings:
 			min_bathrooms=1,
 			required_amenities=["wifi"],
 		)
-		result: list[ListingWithCost] = filter_listings([lwc], constraints)
-		assert len(result) == 1
+		results: list[ConstraintResult] = verify_constraints([lwc], constraints)
+		assert len(results) == 1
+		assert results[0].passed
 
 	def test_amenity_substring_fallback(
 		self,
@@ -1227,14 +1364,15 @@ class TestFilterListings:
 			min_bathrooms=1,
 			required_amenities=["fireplace"],
 		)
-		result: list[ListingWithCost] = filter_listings([lwc], constraints)
-		assert len(result) == 1
+		results: list[ConstraintResult] = verify_constraints([lwc], constraints)
+		assert len(results) == 1
+		assert results[0].passed
 
-	def test_amenity_no_match_still_excludes(
+	def test_amenity_no_match_reports_violation(
 		self,
 		lwc_a: ListingWithCost,
 	) -> None:
-		"""Amenity with no alias or substring hit still excludes listing."""
+		"""Amenity with no alias or substring hit produces a violation."""
 		constraints = TripWeek(
 			week_label="Test",
 			check_in=date(2026, 5, 2),
@@ -1246,8 +1384,38 @@ class TestFilterListings:
 			min_bathrooms=1,
 			required_amenities=["sauna"],  # Not in listing A amenities
 		)
-		result: list[ListingWithCost] = filter_listings([lwc_a], constraints)
-		assert len(result) == 0
+		results: list[ConstraintResult] = verify_constraints([lwc_a], constraints)
+		assert len(results) == 1
+		assert not results[0].passed
+		assert any(v.constraint == "required_amenities" for v in results[0].violations)
+
+	def test_multiple_violations_reported(
+		self,
+		lwc_a: ListingWithCost,
+	) -> None:
+		"""Multiple constraint failures produce multiple violations."""
+		constraints = TripWeek(
+			week_label="Test",
+			check_in=date(2026, 5, 2),
+			check_out=date(2026, 5, 9),
+			location="Mexico City",
+			participants=["A"],
+			num_people=1,
+			min_bedrooms=5,  # Listing A has 3
+			min_bathrooms=5,  # Listing A has 3
+			min_rating=4.95,  # Listing A has 4.91
+			required_amenities=["sauna"],
+			max_price_per_person=10.0,
+		)
+		results: list[ConstraintResult] = verify_constraints([lwc_a], constraints)
+		assert len(results) == 1
+		assert not results[0].passed
+		violation_constraints = {v.constraint for v in results[0].violations}
+		assert "min_bedrooms" in violation_constraints
+		assert "min_bathrooms" in violation_constraints
+		assert "min_rating" in violation_constraints
+		assert "required_amenities" in violation_constraints
+		assert "max_price_per_person" in violation_constraints
 
 
 class TestRankByCategory:

@@ -2,8 +2,11 @@
 
 from src.airbnb.schemas import (
 	AirbnbListing,
+	ConstraintResult,
+	ConstraintViolation,
 	CostBreakdown,
 	ExplorationResult,
+	ExplorationWithAnalysis,
 	ListingFailure,
 	ListingWithCost,
 	TripAnalysis,
@@ -12,8 +15,11 @@ from src.airbnb.schemas import (
 
 __all__: list[str] = [
 	"AirbnbListing",
+	"ConstraintResult",
+	"ConstraintViolation",
 	"CostBreakdown",
 	"ExplorationResult",
+	"ExplorationWithAnalysis",
 	"ListingFailure",
 	"ListingWithCost",
 	"TripAnalysis",
