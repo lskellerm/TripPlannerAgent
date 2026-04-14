@@ -101,7 +101,7 @@ This hybrid approach lets `qwen3.5:35b-a3b` focus on high-level decision-making 
 
 ### Phase 1: Backend Core _(blocks all other phases)_
 
-**Step 1. Project scaffolding & dependencies** _(mirrors JobAutoAgent conventions)_
+~~**Step 1. Project scaffolding & dependencies** _(mirrors JobAutoAgent conventions)_~~
 
 - Initialize monorepo with `backend/` and `frontend/` top-level directories
 - Root: `docker-compose.yml`, `.gitignore`, `.vscode/` (mcp.json, settings.json, extensions.json)
@@ -219,7 +219,7 @@ This hybrid approach lets `qwen3.5:35b-a3b` focus on high-level decision-making 
           └── lib/                 # Shared utilities
   ```
 
-**Step 2. Core infrastructure** (`src/core/`, `src/main.py`, `src/database.py`)
+~~**Step 2. Core infrastructure** (`src/core/`, `src/main.py`, `src/database.py`)~~
 
 - `src/core/config.py` — `Settings(BaseSettings)` with `pydantic-settings`, env file loading, typed fields:
   - `APP_NAME`, `ENVIRONMENT` (Literal["development", "production", "testing"]), `DEBUG`
@@ -249,7 +249,7 @@ This hybrid approach lets `qwen3.5:35b-a3b` focus on high-level decision-making 
 - `src/auth/agent_jwt.py` — `issue_agent_token()` creates a short-lived HS256 JWT signed with `settings.AGENT_SECRET_KEY`, scoped to the current agent session. `verify_agent_token(authorization: str = Header(...))` decodes and validates. Used to gate agent-only internal endpoints.
 - `src/auth/dependencies.py` — re-exports `require_api_key = Depends(verify_api_key)` and `require_agent_token = Depends(verify_agent_token)` for router-level injection
 
-**Step 3. Pydantic data models** (`src/agent/schemas.py`, `src/airbnb/schemas.py`)
+~~**Step 3. Pydantic data models** (`src/agent/schemas.py`, `src/airbnb/schemas.py`)~~
 
 - `TripWeek` — week_label, check_in, check_out, location, neighborhood_constraints, participants (list[str]), num_people, min_bedrooms, min_bathrooms, min_rating, required_amenities, max_price_per_person
 - `AirbnbListing` — url, title, total_cost, nightly_rate, num_beds, num_bedrooms, num_bathrooms, amenities (list[str]), neighborhood, rating, num_reviews, image_url (optional)
@@ -258,7 +258,7 @@ This hybrid approach lets `qwen3.5:35b-a3b` focus on high-level decision-making 
 - `WeekAnalysis` — week (TripWeek), matched_listings (list[ListingWithCost]), best_price, best_value, best_amenities, best_location, best_reviews (each a ListingWithCost)
 - `TripAnalysis` — weeks (list[WeekAnalysis]), per_person_totals (dict[str, float]), overall_summary (str)
 
-**Step 4. Custom Airbnb-domain tools** (`src/airbnb/tools/`)
+~~**Step 4. Custom Airbnb-domain tools** (`src/airbnb/tools/`)~~
 
 `urls.py`:
 
@@ -279,6 +279,7 @@ This hybrid approach lets `qwen3.5:35b-a3b` focus on high-level decision-making 
 - `rank_by_category(listings: list[ListingWithCost])` → dict of category → best listing pick
 
 **Step 5. Configure agent with Playwright MCP** (`src/agent/agent.py`)
+**current dev stage: (ongoing development)**
 
 ```python
 from pydantic_ai import Agent
