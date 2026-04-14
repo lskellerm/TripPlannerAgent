@@ -24,10 +24,13 @@ from playwright.async_api import (
 	async_playwright,
 )
 
+from src.agent.schemas import TripWeek
 from src.airbnb.schemas import (
 	AirbnbListing,
+	ConstraintResult,
 	CostBreakdown,
 	ExplorationResult,
+	ExplorationWithAnalysis,
 	ListingFailure,
 	ListingWithCost,
 )
@@ -93,6 +96,7 @@ async def _explore_single_listing(
 	check_out: str,
 	num_people: int,
 	num_nights: int,
+	search_listing: Union[AirbnbListing, None] = None,
 ) -> Union[ListingWithCost, ListingFailure]:
 	"""Explore a single listing via its listing page and booking page.
 
@@ -109,15 +113,11 @@ async def _explore_single_listing(
 	   to render (``data-testid="pd-value-TOTAL"``), capture the HTML,
 	   and parse the total cost via :func:`parse_booking_price`.
 
-	This two-page approach is necessary because
-	``parse_booking_price`` expects the structured price elements
-	(``pd-value-TOTAL``, ``pd-title-ACCOMMODATION``, etc.) that only
-	appear on the booking/checkout page — *not* the listing page.
-
-	The URL is enriched with ``check_in``/``check_out``/``adults``
-	query parameters so that Airbnb renders pricing on the listing
-	page.  Without dates the page shows "Add dates for prices" and
-	the Reserve button may be absent.
+	After both pages are parsed, any fields missing from the listing
+	detail page are backfilled from ``search_listing`` (the
+	search-card data) — e.g. ``num_reviews``, ``num_bathrooms``,
+	``rating``.  The ``nightly_rate`` is computed from the cost
+	breakdown if it was not extracted from either source.
 
 	Args:
 		browser: Shared Playwright browser instance.
@@ -127,6 +127,8 @@ async def _explore_single_listing(
 		check_out: Check-out date (``YYYY-MM-DD``).
 		num_people: Number of people for cost breakdown.
 		num_nights: Number of nights for the stay.
+		search_listing: Optional search-card listing data to backfill
+			fields that the listing detail page may not include.
 
 	Returns:
 		A ``ListingWithCost`` on success, or ``ListingFailure`` with
@@ -239,6 +241,35 @@ async def _explore_single_listing(
 			page_html=booking_html, num_people=num_people
 		)
 
+		# ── Backfill missing fields from search card ──────────────
+		# The listing detail page may not include num_reviews,
+		# num_bathrooms, or rating (e.g. JSON-LD doesn't always have
+		# them).  Merge from the search-card data when available.
+		# Also compute nightly_rate from cost breakdown if missing.
+		merge_fields: dict[str, Any] = {}
+		if search_listing is not None:
+			if listing.num_reviews is None and search_listing.num_reviews is not None:
+				merge_fields["num_reviews"] = search_listing.num_reviews
+			if (
+				listing.num_bathrooms is None
+				and search_listing.num_bathrooms is not None
+			):
+				merge_fields["num_bathrooms"] = search_listing.num_bathrooms
+			if listing.rating is None and search_listing.rating is not None:
+				merge_fields["rating"] = search_listing.rating
+			if listing.neighborhood is None and search_listing.neighborhood is not None:
+				merge_fields["neighborhood"] = search_listing.neighborhood
+
+		# Compute nightly_rate from cost breakdown if still unknown
+		if listing.nightly_rate is None and "nightly_rate" not in merge_fields:
+			if cost.num_nights > 0:
+				merge_fields["nightly_rate"] = round(
+					cost.total_cost / cost.num_nights, 2
+				)
+
+		if merge_fields:
+			listing = listing.model_copy(update=merge_fields)
+
 		return ListingWithCost(listing=listing, cost_breakdown=cost)
 	except Exception as exc:
 		# Individual listing failures should not crash the batch —
@@ -265,6 +296,7 @@ async def _explore_with_semaphore(
 	num_people: int,
 	num_nights: int,
 	index: int,
+	search_listing: Union[AirbnbListing, None] = None,
 ) -> Union[ListingWithCost, ListingFailure]:
 	"""Rate-limited wrapper around single-listing exploration.
 
@@ -281,6 +313,8 @@ async def _explore_with_semaphore(
 		num_people: Number of people for cost breakdown.
 		num_nights: Number of nights for the stay.
 		index: Position in the batch (for stagger delay calculation).
+		search_listing: Optional search-card listing data to backfill
+			fields that the listing detail page may not include.
 
 	Returns:
 		A ``ListingWithCost`` on success, or ``ListingFailure`` on
@@ -291,7 +325,14 @@ async def _explore_with_semaphore(
 		if index > 0:
 			await asyncio.sleep(_PAGE_LOAD_DELAY)
 		return await _explore_single_listing(
-			browser, url, location, check_in, check_out, num_people, num_nights
+			browser,
+			url,
+			location,
+			check_in,
+			check_out,
+			num_people,
+			num_nights,
+			search_listing=search_listing,
 		)
 
 
@@ -302,7 +343,9 @@ async def explore_listings(
 	check_out: str,
 	num_people: int,
 	num_nights: int,
-) -> ExplorationResult:
+	search_listings: Union[list[AirbnbListing], None] = None,
+	constraints: Union[TripWeek, None] = None,
+) -> Union[ExplorationResult, ExplorationWithAnalysis]:
 	"""Explore multiple Airbnb listings in parallel.
 
 	Launches a headless Chromium browser and opens each listing URL in
@@ -315,6 +358,16 @@ async def explore_listings(
 	if not already present — without them Airbnb shows "Add dates
 	for prices" and the price parser cannot extract a total.
 
+	When ``search_listings`` is provided, fields that the listing
+	detail page may not include (``num_reviews``, ``num_bathrooms``,
+	``rating``, ``neighborhood``) are backfilled from the
+	corresponding search-card data.  Matching is done by URL.
+
+	When ``constraints`` is provided, the returned listings are
+	automatically verified against the trip week constraints and
+	ranked into categories — returning an ``ExplorationWithAnalysis``
+	instead of a plain ``ExplorationResult``.
+
 	Args:
 		urls: List of full Airbnb listing URLs to explore.
 		location: The search location (e.g. "Mexico City") passed to parsers.
@@ -322,12 +375,16 @@ async def explore_listings(
 		check_out: Check-out date (``YYYY-MM-DD``).
 		num_people: Number of people for cost breakdown.
 		num_nights: Number of nights for the stay.
+		search_listings: Optional list of search-card listings to
+			backfill fields not found on detail pages.
+		constraints: Optional trip week constraints.  When provided,
+			succeeded listings are verified with ``verify_constraints``
+			and ranked with ``rank_by_category``, returning an
+			``ExplorationWithAnalysis``.
 
 	Returns:
-		An ``ExplorationResult`` containing ``succeeded`` (list of
-		``ListingWithCost``) and ``failed`` (list of
-		``ListingFailure`` with URL and error message for each
-		listing that could not be parsed).
+		An ``ExplorationResult`` (when no constraints) or
+		``ExplorationWithAnalysis`` (when constraints provided).
 
 	Raises:
 		ValueError: If ``urls`` is empty or ``num_people`` < 1 or
@@ -339,6 +396,12 @@ async def explore_listings(
 		raise ValueError("num_people must be at least 1")
 	if num_nights < 1:
 		raise ValueError("num_nights must be at least 1")
+
+	# Build URL→search-listing lookup for backfilling
+	search_lookup: dict[str, AirbnbListing] = {}
+	if search_listings:
+		for sl in search_listings:
+			search_lookup[sl.url] = sl
 
 	max_concurrent: int = settings.MAX_CONCURRENT_BROWSERS
 
@@ -361,6 +424,7 @@ async def explore_listings(
 					num_people,
 					num_nights,
 					i,
+					search_listing=search_lookup.get(url),
 				)
 				for i, url in enumerate(urls)
 			]
@@ -385,5 +449,27 @@ async def explore_listings(
 		n_total=len(urls),
 		n_failed=len(failed),
 	)
+
+	# When constraints are provided, run verify + rank pipeline inline
+	if constraints is not None:
+		from src.airbnb.tools.analysis import rank_by_category, verify_constraints
+
+		constraint_results: list[ConstraintResult] = verify_constraints(
+			succeeded, constraints
+		)
+		passed_listings: list[ListingWithCost] = [
+			cr.listing for cr in constraint_results if cr.passed
+		]
+		rankings: dict[str, Union[ListingWithCost, None]] = rank_by_category(
+			passed_listings
+		)
+
+		return ExplorationWithAnalysis(
+			succeeded=succeeded,
+			failed=failed,
+			constraint_results=constraint_results,
+			passed_listings=passed_listings,
+			rankings=rankings,
+		)
 
 	return ExplorationResult(succeeded=succeeded, failed=failed)
