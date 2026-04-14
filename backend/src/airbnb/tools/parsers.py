@@ -563,14 +563,15 @@ def parse_search_results(
 			if img:
 				image_url = str(img["src"])
 
-		# Extract beds/bedrooms from listing-card-subtitle elements.
+		# Extract beds/bedrooms/bathrooms from listing-card-subtitle elements.
 		# Airbnb search cards present room details in a subtitle element
-		# whose text reads e.g. "2 bedrooms 2 bedrooms 2 beds , · 2 beds".
+		# whose text reads e.g. "2 bedrooms · 2 beds · 1 bath".
 		# NOTE: The listing *name* subtitle can also contain "bed" (e.g.
 		# "Brand New 2-Bedroom ...") but won't match the regex patterns.
 		# Only break when at least one regex actually matched.
 		num_bedrooms: Union[int, None] = None
 		num_beds: Union[int, None] = None
+		num_bathrooms: Union[float, None] = None
 		if container:
 			for subtitle in container.find_all(
 				attrs={"data-testid": "listing-card-subtitle"}
@@ -578,8 +579,9 @@ def parse_search_results(
 				sub_text: str = subtitle.get_text(" ", strip=True)
 				if not sub_text:
 					continue
-				# Only consider subtitles that mention bed/bedroom
-				if "bed" not in sub_text.lower():
+				# Only consider subtitles that mention bed/bedroom/bath
+				sub_lower: str = sub_text.lower()
+				if "bed" not in sub_lower and "bath" not in sub_lower:
 					continue
 				br_match: Union[Match[str], None] = BEDROOMS_PATTERN.search(sub_text)
 				if br_match:
@@ -587,7 +589,10 @@ def parse_search_results(
 				bd_match: Union[Match[str], None] = BEDS_ONLY_PATTERN.search(sub_text)
 				if bd_match:
 					num_beds = int(bd_match.group(1))
-				if br_match or bd_match:
+				bt_match: Union[Match[str], None] = BATHS_PATTERN.search(sub_text)
+				if bt_match:
+					num_bathrooms = float(bt_match.group(1))
+				if br_match or bd_match or bt_match:
 					break  # only stop after a successful regex match
 
 		# Strategy 3: Keyword scan of the host-given title for known
@@ -633,6 +638,7 @@ def parse_search_results(
 				nightly_rate=nightly_rate,
 				num_beds=num_beds,
 				num_bedrooms=num_bedrooms,
+				num_bathrooms=num_bathrooms,
 				rating=rating,
 				num_reviews=num_reviews,
 				neighborhood=neighborhood,
