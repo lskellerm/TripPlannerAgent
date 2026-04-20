@@ -12,7 +12,7 @@ dependencies = [
     "pydantic[email]>=2.10.0",
     "pydantic-settings>=2.7.0",
     # AI agent framework
-    "pydantic-ai",
+    "pydantic-ai>=1.84.0",
     # HTML parsing
     "beautifulsoup4",
     "lxml",
