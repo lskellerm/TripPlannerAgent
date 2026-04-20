@@ -82,6 +82,31 @@ class Settings(BaseSettings):
 	PLAYWRIGHT_OUTPUT_DIR: str = "./.playwright-mcp/html_output"
 	MAX_CONCURRENT_BROWSERS: int = 3
 
+	# ── Code Mode (pydantic-ai-harness) ──
+	# When enabled, the custom Airbnb FunctionToolset is wrapped behind a
+	# single ``run_code`` tool powered by the Monty sandbox.
+	#
+	# The agent can then chain multiple Airbnb tool calls in one Python snippet
+	# (loops, asyncio.gather, in-memory filtering) instead of paying
+	# one model round-trip per call.
+	#
+	# Browser/MCP tools are excluded because they must run sequentially and are deferred-execution.
+	#
+	# DISABLED BY DEFAULT (2026-04-20): ``pydantic-ai-harness 0.1.1`` (the
+	# only published version) calls ``FunctionSnapshot.resume(future=...)``
+	# inside ``code_mode/_toolset.py::_handle_function_snapshot``, but no
+	# released ``pydantic-monty`` version exposes that keyword — the latest
+	# (``0.0.16``) only accepts ``resume(result, *, mount, os)``.  Every
+	# ``run_code`` invocation therefore fails with::
+	#
+	#     TypeError: FunctionSnapshot.resume() got an unexpected keyword
+	#     argument 'future'
+	#
+	# Re-enable once upstream ships a compatible Monty release (track at
+	# https://github.com/pydantic/pydantic-ai-harness/issues/215).
+	CODE_MODE_ENABLED: bool = False
+	CODE_MODE_MAX_RETRIES: int = 3
+
 	# ── Rate Limiting ──
 	RATE_LIMIT_PER_MINUTE: int = 10
 

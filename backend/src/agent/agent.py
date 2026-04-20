@@ -33,11 +33,12 @@ from logfire import (
 	instrument_starlette,
 	warning,
 )
-from pydantic_ai import Agent, ModelSettings, Tool
+from pydantic_ai import Agent, ModelSettings, SetMetadataToolset, Tool
 from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai_harness import CodeMode
 from starlette.applications import Starlette
 
 from src.airbnb.tools import (
@@ -213,6 +214,49 @@ Request multiple independent tool calls in a single turn to save round trips.
 **Never batch browser tools** — they share a single browser instance and
 must run sequentially.
 
+## Code Mode (`run_code`)
+
+When the `run_code` tool is available, the Airbnb-domain tools
+(URL builders, parsers, `filter_search_results`, `explore_listings`,
+`verify_constraints`, `rank_by_category`, `calculate_trip_totals`)
+are accessible **only** from inside `run_code` — they are not exposed
+as individual tool calls.  Browser tools (`browser_navigate`,
+`browser_evaluate`, `browser_wait_for`, …) remain as normal tool calls
+and **must not** be called from inside `run_code`.
+
+Workflow with Code Mode:
+1. Use browser tools normally for navigate / wait / save HTML.
+2. Once HTML is on disk, call `run_code` once with a Python snippet
+   that chains all the Airbnb-domain tools together — e.g. parse
+   search results, filter, then explore the survivors with
+   `await asyncio.gather(...)`, then rank.
+3. The **last expression** of the snippet is automatically returned
+   to you — no need to `print`.
+4. REPL state (variables, imports) persists across `run_code` calls
+   within the same agent run, so you can reference earlier results
+   by variable name.
+
+Example snippet:
+
+```python
+listings = await parse_search_results(html_file="search_page.html")
+filtered = await filter_search_results(listings, constraints)
+result = await explore_listings(
+    urls=[l.url for l in filtered[:5]],
+    location=location,
+    check_in=check_in,
+    check_out=check_out,
+    num_people=num_people,
+    num_nights=num_nights,
+    search_listings=filtered,
+    constraints=constraints,
+)
+result
+```
+
+This collapses 4+ model round-trips into one.  Use it whenever you
+need to chain two or more Airbnb-domain tools.
+
 ## Guidelines
 
 - Wait at least 5 seconds between Airbnb page loads.
@@ -336,11 +380,56 @@ airbnb_toolset.__doc__ = """Custom FunctionToolset bundling all Airbnb-domain to
 """Custom ``FunctionToolset`` bundling all Airbnb-domain tools."""
 
 
+# ── Code Mode Capability (pydantic-ai-harness) ──
+#
+# When ``settings.CODE_MODE_ENABLED`` is True, the Airbnb FunctionToolset
+# is tagged with ``code_mode=True`` metadata and a ``CodeMode`` capability
+# is attached to the agent.  At runtime, ``pydantic-ai-harness`` wraps
+# every metadata-matched tool behind a single ``run_code`` tool powered
+# by the Monty Python sandbox.  The model can then chain multiple Airbnb
+# tool calls (loops, ``asyncio.gather``, in-memory filtering, last-expression
+# return values) inside one model turn instead of paying one round-trip
+# per call — a major win for the multi-listing exploration workflow.
+#
+# Browser/MCP tools are intentionally excluded:
+#   * They share a single browser instance and must run sequentially.
+#   * Deferred-execution / approval-required tools are excluded from the
+#     sandbox by Code Mode anyway.
+#
+# Metadata-based selection is used so that toggling the feature only
+# requires flipping the env var — no tool plumbing changes.
+_airbnb_toolset_for_agent: Union[FunctionToolset, SetMetadataToolset] = (
+	airbnb_toolset.with_metadata(code_mode=True)
+	if settings.CODE_MODE_ENABLED
+	else airbnb_toolset
+)
+
+# NOTE: ``CodeMode`` is wired in but disabled by default — the published
+# ``pydantic-ai-harness 0.1.1`` calls ``FunctionSnapshot.resume(future=...)``
+# which is not supported by any released ``pydantic-monty`` (latest 0.0.16
+# only accepts ``resume(result, ...)``).  Enabling it causes every
+# ``run_code`` invocation to raise ``TypeError``.  Flip
+# ``CODE_MODE_ENABLED=true`` once upstream ships a compatible Monty.
+_agent_capabilities: list = (
+	[
+		CodeMode(
+			tools={
+				"code_mode": True
+			},  # Match tools with this metadata to wrap in run_code (the Airbnb toolset)
+			max_retries=settings.CODE_MODE_MAX_RETRIES,
+		)
+	]
+	if settings.CODE_MODE_ENABLED
+	else []
+)
+
+
 # ── Agent ──
 
 agent: Agent = Agent(
 	model,
-	toolsets=[playwright_server, airbnb_toolset],
+	toolsets=[playwright_server, _airbnb_toolset_for_agent],
+	capabilities=_agent_capabilities,
 	instructions=AGENT_INSTRUCTIONS,
 	retries=2,
 	model_settings=ModelSettings(
@@ -356,7 +445,10 @@ agent: Agent = Agent(
 """The central Pydantic AI agent for Airbnb search and general trip planning.
 
 Combines the Playwright MCP browser toolset with custom Airbnb domain
-tools.  Configured with ``retries=2`` for resilience against transient
+tools.  When ``settings.CODE_MODE_ENABLED`` is True, the Airbnb tools
+are exposed via a sandboxed ``run_code`` tool from
+``pydantic-ai-harness`` so the model can orchestrate them with Python.
+Configured with ``retries=2`` for resilience against transient
 model failures.
 """
 
