@@ -2,7 +2,7 @@
 name: Codebase Diagramming
 description: Create visual Excalidraw diagrams to explain codebase concepts, architecture, data flows, UI layouts, and hierarchies.
 tools: ["excalidraw/*", "search/codebase", "search", "web/fetch"]
-model: ["Claude Sonnet 4.5", "GPT-5.2"]
+model: ["GPT-5.3-Codex", "Claude Opus 4.7", "Claude Sonnet 4.5"]
 ---
 
 # Codebase Diagramming Agent
