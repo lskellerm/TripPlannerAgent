@@ -34,6 +34,7 @@ from logfire import (
 	warning,
 )
 from pydantic_ai import Agent, ModelSettings, SetMetadataToolset, Tool
+from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.mcp import MCPServerStdio
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
@@ -359,6 +360,8 @@ cost computation, and categorical ranking.
 - **Analysis**: `rank_by_category`, `calculate_trip_totals`
 """
 
+
+# Define and configure the Airbnb FunctionToolset with all domain-specific tools.
 airbnb_toolset: FunctionToolset = FunctionToolset(
 	[
 		Tool(build_search_url, takes_ctx=False),
@@ -384,8 +387,9 @@ airbnb_toolset.__doc__ = """Custom FunctionToolset bundling all Airbnb-domain to
 #
 # When ``settings.CODE_MODE_ENABLED`` is True, the Airbnb FunctionToolset
 # is tagged with ``code_mode=True`` metadata and a ``CodeMode`` capability
-# is attached to the agent.  At runtime, ``pydantic-ai-harness`` wraps
-# every metadata-matched tool behind a single ``run_code`` tool powered
+# is attached to the agent.
+#
+# At runtime, ``pydantic-ai-harness`` wrap every metadata-matched tool behind a single ``run_code`` tool powered
 # by the Monty Python sandbox.  The model can then chain multiple Airbnb
 # tool calls (loops, ``asyncio.gather``, in-memory filtering, last-expression
 # return values) inside one model turn instead of paying one round-trip
@@ -396,7 +400,7 @@ airbnb_toolset.__doc__ = """Custom FunctionToolset bundling all Airbnb-domain to
 #   * Deferred-execution / approval-required tools are excluded from the
 #     sandbox by Code Mode anyway.
 #
-# Metadata-based selection is used so that toggling the feature only
+# Metadata-based selection is used so at toggling the feature only
 # requires flipping the env var — no tool plumbing changes.
 _airbnb_toolset_for_agent: Union[FunctionToolset, SetMetadataToolset] = (
 	airbnb_toolset.with_metadata(code_mode=True)
@@ -410,7 +414,7 @@ _airbnb_toolset_for_agent: Union[FunctionToolset, SetMetadataToolset] = (
 # only accepts ``resume(result, ...)``).  Enabling it causes every
 # ``run_code`` invocation to raise ``TypeError``.  Flip
 # ``CODE_MODE_ENABLED=true`` once upstream ships a compatible Monty.
-_agent_capabilities: list = (
+_agent_capabilities: Union[list[AbstractCapability], None] = (
 	[
 		CodeMode(
 			tools={
