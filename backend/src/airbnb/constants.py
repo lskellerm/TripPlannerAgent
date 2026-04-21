@@ -28,6 +28,11 @@ __all__: list[str] = [
 	"REVIEW_COUNT_PATTERN",
 	"ROOM_ID_PATTERN",
 	"TOTAL_PRICE_PATTERN",
+	"RESERVE_BUTTON_SELECTOR",
+	"BOOKING_TOTAL_SELECTOR",
+	"BOOKING_PRICE_DETAILS_SELECTOR",
+	"BOOKING_CONFIRM_PAY_SELECTOR",
+	"LISTING_BOOKING_SIDEBAR_SELECTOR",
 ]
 
 # ── URL / ID Patterns ──
@@ -63,6 +68,24 @@ RATE_OPTION_TOTAL_PATTERN: Pattern[str] = re.compile(
 	r"\$(\d[\d,]*(?:\.\d{2})?)\s+total",
 	re.IGNORECASE,
 )
+
+
+## ── Booking-page selectors/signals used after clicking Reserve ── ##
+
+# Booking-page selectors/signals used after clicking Reserve.
+RESERVE_BUTTON_SELECTOR: str = '[data-testid="homes-pdp-cta-btn"]'
+BOOKING_TOTAL_SELECTOR: str = '[data-testid="pd-value-TOTAL"]'
+BOOKING_PRICE_DETAILS_SELECTOR: str = "text=/Price details/i"
+BOOKING_CONFIRM_PAY_SELECTOR: str = "text=/Confirm and pay/i"
+
+# Listing-page booking widget selectors used before clicking Reserve.
+# Includes the sidebar test id and the Booking Information aside.
+LISTING_BOOKING_SIDEBAR_SELECTOR: str = (
+	'[data-testid="book-it-default"], '
+	'aside[aria-label="Booking Information"], '
+	'aside[aria-label*="Booking"]'
+)
+
 
 # ── Rating / Review Patterns ──
 

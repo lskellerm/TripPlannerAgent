@@ -12,6 +12,7 @@ trips per listing.
 """
 
 import asyncio
+import re
 from types import CoroutineType
 from typing import Any, Union
 from urllib.parse import ParseResult, parse_qs, urlencode, urlparse, urlunparse
@@ -25,6 +26,13 @@ from playwright.async_api import (
 )
 
 from src.agent.schemas import TripWeek
+from src.airbnb.constants import (
+	BOOKING_CONFIRM_PAY_SELECTOR,
+	BOOKING_PRICE_DETAILS_SELECTOR,
+	BOOKING_TOTAL_SELECTOR,
+	LISTING_BOOKING_SIDEBAR_SELECTOR,
+	RESERVE_BUTTON_SELECTOR,
+)
 from src.airbnb.schemas import (
 	AirbnbListing,
 	ConstraintResult,
@@ -43,6 +51,172 @@ __all__: list[str] = [
 
 # Minimum delay between page loads to respect Airbnb rate limits (seconds).
 _PAGE_LOAD_DELAY: float = 2.0
+
+
+async def _safe_page_title(page: Page) -> str:
+	"""Get page title without raising.
+
+	Args:
+		page: Playwright page.
+
+	Returns:
+		Page title when available, otherwise a placeholder string.
+	"""
+	try:
+		return await page.title()
+	except Exception:
+		return "<unknown>"
+
+
+async def _log_booking_page_state(page: Page, full_url: str, stage: str) -> None:
+	"""Log lightweight booking-page diagnostics.
+
+	Args:
+		page: Playwright page currently in use.
+		full_url: Listing URL with date params.
+		stage: Human-readable stage label for diagnostics.
+	"""
+	has_total: bool = False
+	has_price_details: bool = False
+	has_confirm_pay: bool = False
+	has_reserve_button: bool = False
+
+	try:
+		has_total: bool = await page.locator(BOOKING_TOTAL_SELECTOR).count() > 0
+		has_price_details: bool = (
+			await page.locator(BOOKING_PRICE_DETAILS_SELECTOR).count() > 0
+		)
+		has_confirm_pay: bool = (
+			await page.locator(BOOKING_CONFIRM_PAY_SELECTOR).count() > 0
+		)
+		has_reserve_button: bool = (
+			await page.locator(RESERVE_BUTTON_SELECTOR).count() > 0
+		)
+	except Exception:
+		# Best-effort diagnostics only.
+		pass
+
+	info(
+		"Booking page state ({stage}) for {url}: page_url={page_url}, title={title}, has_total={has_total}, has_price_details={has_price_details}, has_confirm_pay={has_confirm_pay}, has_reserve_button={has_reserve_button}",
+		stage=stage,
+		url=full_url,
+		page_url=page.url,
+		title=await _safe_page_title(page),
+		has_total=has_total,
+		has_price_details=has_price_details,
+		has_confirm_pay=has_confirm_pay,
+		has_reserve_button=has_reserve_button,
+	)
+
+
+async def _wait_for_booking_page_ready(page: Page, full_url: str) -> bool:
+	"""Wait for booking page readiness signals after clicking Reserve.
+
+	This function helps control the timing uncertainty around when the booking page is ready for price parsing after clicking the Reserve button.
+
+	It waits for multiple possible signals of booking page readiness, including URL transitions and the presence of key booking-related selectors in the DOM.
+
+	 If these signals do not appear within expected timeouts, it logs a warning and returns False, allowing the agent to proceed with whatever content is available (which may lead to a parsing failure that is handled gracefully).
+
+	Args:
+		page: Playwright page to observe.
+		full_url: Listing URL with date params.
+
+	Returns:
+		True when booking signals are detected, False on timeout.
+	"""
+	# Give navigation/rendering a chance to start.
+	try:
+		await page.wait_for_load_state("domcontentloaded", timeout=7000)
+	except Exception:
+		pass
+
+	# Fast-path: total selector already present.
+	if await page.locator(BOOKING_TOTAL_SELECTOR).count() > 0:
+		info("Booking total selector already present for {url}", url=full_url)
+		await _log_booking_page_state(page, full_url, stage="ready-immediate")
+		return True
+
+	# Prefer URL transition when Airbnb pushes to checkout path, checking the URL for /book/ which is a strong signal of booking flow.
+	try:
+		await page.wait_for_url(re.compile(r".*/book/.*"), timeout=12000)
+		# Once the frame transitions to /book/, treat the page as ready and skip fallback DOM probing.
+		try:
+			await page.wait_for_load_state("domcontentloaded", timeout=7000)
+		except Exception:
+			pass
+		info(
+			"Booking URL transition detected for {url}: {page_url}",
+			url=full_url,
+			page_url=page.url,
+		)
+		await _log_booking_page_state(page, full_url, stage="ready-url-transition")
+		return True
+	except Exception:
+		info(
+			"No /book/ URL transition detected for {url}; checking fallback page signals",
+			url=full_url,
+		)
+
+	# Fallback to semantic booking-page signals in body text/DOM.
+	try:
+		await page.wait_for_function(
+			f"""() => Boolean(
+				document.querySelector('{BOOKING_TOTAL_SELECTOR}') ||
+				(document.body?.innerText || "").toLowerCase().includes("price details") ||
+				(document.body?.innerText || "").toLowerCase().includes("confirm and pay")
+			)""",
+			timeout=20000,
+		)
+		await _log_booking_page_state(page, full_url, stage="ready-signals")
+		return True
+	except Exception:
+		warning(
+			"Booking page readiness signals timed out for {url}; proceeding with available content",
+			url=full_url,
+		)
+		await _log_booking_page_state(page, full_url, stage="timeout")
+		return False
+
+
+async def _wait_for_listing_booking_widget_ready(page: Page, full_url: str) -> None:
+	"""Wait for listing-page booking widget signals before clicking Reserve.
+
+	Args:
+		page: Playwright page to observe.
+		full_url: Listing URL with date params.
+	"""
+	try:
+		await page.wait_for_selector(LISTING_BOOKING_SIDEBAR_SELECTOR, timeout=8000)
+		info("Listing booking sidebar loaded for {url}", url=full_url)
+		return
+	except Exception:
+		info(
+			"Listing booking sidebar selector not found for {url}; checking Reserve button",
+			url=full_url,
+		)
+
+	try:
+		await page.wait_for_selector(RESERVE_BUTTON_SELECTOR, timeout=5000)
+		info("Reserve button loaded for {url}", url=full_url)
+		return
+	except Exception:
+		info(
+			"Reserve button selector not found for {url}; waiting for price text",
+			url=full_url,
+		)
+
+	try:
+		await page.wait_for_selector(
+			"text=/\\$[\\d,]+\\s*(x|×|for)\\s*\\d+\\s*night/i",
+			timeout=5000,
+		)
+		info("Price text loaded for {url}", url=full_url)
+	except Exception:
+		warning(
+			"Listing booking widget waits timed out for {url}; proceeding with available content",
+			url=full_url,
+		)
 
 
 def _ensure_date_params(
@@ -151,39 +325,13 @@ async def _explore_single_listing(
 		# ── Step 1: Listing page ──────────────────────────────────
 		# Use "load" to wait for all sub-resources (scripts, styles) —
 		# DOMContentLoaded fires too early for React hydration.
-		# networkidle is unreliable because Airbnb keeps persistent
-		# analytics/WebSocket connections open.
+		#
+		# networkidle is unreliable because Airbnb keeps persistent analytics/WebSocket connections open.
 		await page.goto(full_url, wait_until="load", timeout=30000)
 		info("Loaded listing page: {url}", url=full_url)
 
-		# Wait for the booking sidebar to hydrate — it contains the
-		# Reserve button we need to click next.
-		try:
-			await page.wait_for_selector(
-				'[data-testid="book-it-default"]',
-				timeout=8000,
-			)
-			info("Booking sidebar loaded for {url}", url=full_url)
-		except Exception:
-			# Booking sidebar selector not found — some page layouts
-			# differ. Fall back to waiting for any price-like text
-			# (e.g. "$X x N nights") which indicates React has rendered
-			# the pricing widget.
-			info(
-				"Booking sidebar not found for {url}, waiting for price text instead",
-			)
-			try:
-				await page.wait_for_selector(
-					"text=/\\$[\\d,]+\\s*(x|×|for)\\s*\\d+\\s*night/i",
-					timeout=5000,
-				)
-				info("Price text loaded for {url}", url=full_url)
-			except Exception:
-				warning(
-					"Pricing selector wait timed out for {url}, "
-					"proceeding with available content",
-					url=full_url,
-				)
+		# Wait for listing booking-widget signals before parsing and clicking.
+		await _wait_for_listing_booking_widget_ready(page, full_url)
 
 		# Capture listing page HTML for listing details extraction
 		listing_html: str = await page.content()
@@ -194,7 +342,7 @@ async def _explore_single_listing(
 		# ── Step 2: Booking page ──────────────────────────────────
 		# Click the Reserve button to navigate to the checkout page
 		# where parse_booking_price can find pd-value-TOTAL etc.
-		reserve_selector: str = '[data-testid="homes-pdp-cta-btn"]'
+		reserve_selector: str = RESERVE_BUTTON_SELECTOR
 		try:
 			await page.wait_for_selector(reserve_selector, timeout=5000)
 		except Exception:
@@ -212,13 +360,13 @@ async def _explore_single_listing(
 		# Standard page.click() fails with "element is outside of the
 		# viewport" on ~40% of listings due to these fixed overlays.
 		clicked: bool = await page.evaluate(
-			"""() => {
-				const btn = document.querySelector('[data-testid="homes-pdp-cta-btn"]');
+			f"""() => {{
+				const btn = document.querySelector('{RESERVE_BUTTON_SELECTOR}');
 				if (!btn) return false;
-				btn.scrollIntoView({block: 'center'});
+				btn.scrollIntoView({{block: 'center'}});
 				btn.click();
 				return true;
-			}"""
+			}}"""
 		)
 		if not clicked:
 			return ListingFailure(
@@ -227,30 +375,25 @@ async def _explore_single_listing(
 			)
 		info("Clicked Reserve for {url}", url=full_url)
 
-		# Wait for the booking/checkout page to render its price
-		# breakdown.  The primary indicator is pd-value-TOTAL; fall
-		# back to the "Price details" heading text.
-		try:
-			await page.wait_for_selector(
-				'[data-testid="pd-value-TOTAL"]',
-				timeout=15000,
+		booking_ready: bool = await _wait_for_booking_page_ready(page, full_url)
+
+		# Retry Reserve once when the click did not lead to booking signals.
+		if not booking_ready:
+			warning(
+				"Booking signals absent after initial click for {url}; retrying Reserve once",
+				url=full_url,
 			)
-			info("Booking page price loaded for {url}", url=full_url)
-		except Exception:
 			try:
-				await page.wait_for_selector(
-					"text=/Price details/i",
-					timeout=5000,
+				await page.locator(reserve_selector).first.click(
+					force=True, timeout=5000
 				)
-				info(
-					"Booking page 'Price details' loaded for {url}",
-					url=full_url,
-				)
-			except Exception:
+				info("Retried Reserve click with force=True for {url}", url=full_url)
+				await _wait_for_booking_page_ready(page, full_url)
+			except Exception as retry_exc:
 				warning(
-					"Booking page selectors timed out for {url}, "
-					"proceeding with available content",
+					"Reserve retry click failed for {url}: {error}",
 					url=full_url,
+					error=f"{type(retry_exc).__name__}: {retry_exc}",
 				)
 
 		# Capture booking page HTML for price extraction
@@ -294,9 +437,13 @@ async def _explore_single_listing(
 		# capture the error for structured reporting.
 		error_msg: str = f"{type(exc).__name__}: {exc}"
 		warning(
-			"Failed to explore listing {url}: {error}",
+			"Failed to explore listing {url}: {error}. page_url={page_url}, page_title={page_title}",
 			url=url,
 			error=error_msg,
+			page_url=page.url if "page" in locals() else "<unavailable>",
+			page_title=(
+				await _safe_page_title(page) if "page" in locals() else "<unavailable>"
+			),
 		)
 		return ListingFailure(url=url, error=error_msg)
 	finally:
@@ -468,7 +615,9 @@ async def explore_listings(
 		n_failed=len(failed),
 	)
 
-	# When constraints are provided, run verify + rank pipeline inline
+	# When constraints are provided, run verify + rank pipeline inline, returning an ExplorationWithAnalysis that includes constraint results, passed listings, and rankings by category.
+
+	# This saves the agent from having to make additional calls to the verification and ranking tools.
 	if constraints is not None:
 		from src.airbnb.tools.analysis import rank_by_category, verify_constraints
 
@@ -490,4 +639,5 @@ async def explore_listings(
 			rankings=rankings,
 		)
 
+	# If no constraints, return the plain ExplorationResult with successes and failures only.
 	return ExplorationResult(succeeded=succeeded, failed=failed)
