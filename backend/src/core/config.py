@@ -22,7 +22,9 @@ class Settings(BaseSettings):
 	- ``OLLAMA_BASE_URL``: Base URL for the Ollama LLM provider.
 	- ``OLLAMA_MODEL_NAME``: The Ollama model to use for LLM interactions.
 	- ``OLLAMA_MAX_TOKENS``: Maximum number of tokens the model can generate per request.
-	- ``OLLAMA_NUM_CTX``: Context window size (in tokens) for the Ollama model. At startup, a derived Ollama model is created with this value baked in (via ``/api/create``), because Ollama's OpenAI-compatible endpoint does not support ``options.num_ctx``. Default 131072 (128K) — a full agent run typically accumulates ~90-100K tokens (system prompt + tool definitions ~19K, 10-15 tool call/response pairs ~50-70K, model thinking/responses ~10K).
+	- ``OLLAMA_NUM_CTX``: Context window size (in tokens) for the Ollama model. At startup, a derived Ollama model is created with this value baked in (via ``/api/create``), because Ollama's OpenAI-compatible endpoint does not support ``options.num_ctx``. Default 32768 (32K) to reduce KV cache pressure for 16 GB GPUs.
+	- ``OLLAMA_NUM_GPU``: Number of layers to keep on GPU when creating the derived model. ``999`` requests full GPU offload.
+	- ``OLLAMA_QUANTIZE``: Optional quantization override passed to ``/api/create``. Use ``"native"`` to keep the pulled model tag's built-in quantization.
 	- ``OLLAMA_TEMPERATURE``: Sampling temperature for model generation. Default 0.7 per Qwen3 recommended non-thinking mode settings.
 	- ``OLLAMA_TIMEOUT``: Timeout in seconds for model requests (covers httpx read timeout during streaming). Local LLMs with large contexts and thinking enabled (e.g. qwen3.5) need generous read timeouts — the model may pause for extended periods between output chunks while processing tool results or reasoning internally.
 	- ``OLLAMA_FREQUENCY_PENALTY``: Penalizes repeated tokens based on frequency (0.0–2.0). Helps prevent degenerate text loops.
@@ -53,11 +55,16 @@ class Settings(BaseSettings):
 
 	# ── Ollama (LLM Provider) ──
 	OLLAMA_BASE_URL: str = "http://localhost:11434"
-	OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
+	OLLAMA_MODEL_NAME: str = "qwen3.5:9b"
+	# OLLAMA_MODEL_NAME: str = "qwen3.5:35b-a3b"
+	# OLLAMA_MODEL_NAME: str = "qwen3:14b-q4_K_M"
 	OLLAMA_MAX_TOKENS: int = 16384
-	OLLAMA_NUM_CTX: int = 131072  # Baked into a derived Ollama model at startup
+	OLLAMA_NUM_CTX: int = 32768  # Baked into a derived Ollama model at startup
+	OLLAMA_NUM_GPU: int = -1  # Use all available GPU layers by default; set to 0 to disable GPU offload and run on CPU
+	OLLAMA_QUANTIZE: str = "native"  # Use pulled tag quantization unless overridden
 	# OLLAMA_TEMPERATURE: float = 0.7  # Qwen3 non-thinking mode recommended
 	# OLLAMA_TEMPERATURE: float = 0.2  # Qwen3 thinking mode recommended (high)
+
 	OLLAMA_TEMPERATURE: float = 0.3  # Qwen3 thinking mode recommended (medium)
 	OLLAMA_TIMEOUT: float = 1200.0
 	OLLAMA_FREQUENCY_PENALTY: float = 0.3

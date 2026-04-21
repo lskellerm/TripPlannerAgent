@@ -13,6 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from src.agent.agent import agent as trip_agent
+from src.agent.agent import configure_agent_model
 from src.core.config import fastapi_config, settings
 from src.core.exception_handlers import register_exception_handlers
 from src.core.utils import generate_custom_unique_id
@@ -57,6 +58,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 	# ── Playwright HTML Output Directory ──
 	Path(settings.PLAYWRIGHT_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+
+	# ── Ollama Derived Model Configuration ──
+	await configure_agent_model()
 
 	# ── Playwright MCP Server Lifecycle ──
 	async with trip_agent:

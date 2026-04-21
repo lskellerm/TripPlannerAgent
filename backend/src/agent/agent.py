@@ -24,7 +24,7 @@ lifespan) to ensure the derived model exists and update the agent.
 from pathlib import Path
 from typing import Union
 
-from httpx import AsyncClient, Client, Limits, Response, Timeout
+from httpx import AsyncClient, Client, HTTPStatusError, Limits, Response, Timeout
 from logfire import (
 	configure,
 	info,
@@ -261,7 +261,11 @@ need to chain two or more Airbnb-domain tools.
 ## Guidelines
 
 - Wait at least 5 seconds between Airbnb page loads.
-- Present results with: title, nightly rate, total cost, cost per person,
+- Present results with: title, nightly rate
+
+
+
+, total cost, cost per person,
   rating, reviews, key amenities.
 - For multi-week trips, show per-person costs across weeks.
 - Tool outputs are intermediate data — process and continue.  Only respond
@@ -443,7 +447,7 @@ agent: Agent = Agent(
 		parallel_tool_calls=True,
 		frequency_penalty=settings.OLLAMA_FREQUENCY_PENALTY,
 		presence_penalty=settings.OLLAMA_PRESENCE_PENALTY,
-		thinking="low",
+		thinking="high",
 	),
 )
 """The central Pydantic AI agent for Airbnb search and general trip planning.
@@ -458,32 +462,90 @@ model failures.
 
 
 # ── Ollama Context Window Configuration ──
-def _derive_model_name(base_model: str, num_ctx: int) -> str:
+def _normalize_quantize(quantize: str) -> str:
+	"""Normalize quantization value used in settings.
+
+	Args:
+		quantize: User-provided quantization value.
+
+	Returns:
+		Lower-cased quantization string with surrounding whitespace removed.
+	"""
+	return quantize.strip().lower()
+
+
+def _derive_model_name(
+	base_model: str,
+	num_ctx: int,
+	num_gpu: int,
+	quantize: str,
+) -> str:
 	"""Build a descriptive name for the derived Ollama model.
 
 	Args:
 		base_model: The base Ollama model name (e.g. ``"qwen3.5:35b-a3b"``).
 		num_ctx: The context window size in tokens.
+		num_gpu: Number of layers requested on GPU.
+		quantize: Quantization override (or ``"native"``).
 
 	Returns:
-		A derived model name (e.g. ``"qwen3.5:35b-a3b-ctx32k"``).
+		A derived model name including ctx, gpu, and quantization profile.
 	"""
-	return f"{base_model}-ctx{num_ctx // 1024}k"
+	quantize_suffix: str = _normalize_quantize(quantize)
+	return f"{base_model}-{quantize_suffix}-ctx{num_ctx // 1024}k-gpu-{num_gpu if num_gpu >= 0 else 'auto'}"
+
+
+def _build_ollama_create_payload(
+	derived_name: str,
+	base_model: str,
+	num_ctx: int,
+	num_gpu: int,
+	quantize: str,
+) -> dict[str, Union[str, dict[str, int], bool]]:
+	"""Build Ollama ``/api/create`` payload for derived model creation.
+
+	Args:
+		derived_name: Name of the derived model to create.
+		base_model: Base model tag to derive from.
+		num_ctx: Context window to bake into the derived model.
+		num_gpu: Number of layers requested on GPU.
+		quantize: Quantization override (or ``"native"``).
+
+	Returns:
+		A JSON-serializable payload for Ollama ``/api/create``.
+	"""
+	payload: dict[str, Union[str, dict[str, int], bool]] = {
+		"model": derived_name,
+		"from": base_model,
+		"parameters": {
+			"num_ctx": num_ctx,
+			"num_gpu": num_gpu,
+		},
+		"stream": False,
+	}
+
+	if _normalize_quantize(quantize) != "native":
+		payload["quantize"] = quantize
+
+	return payload
 
 
 async def ensure_ollama_model(
 	base_url: str,
 	base_model: str,
 	num_ctx: int,
+	num_gpu: int,
+	quantize: str,
 ) -> str:
-	"""Ensure a derived Ollama model with the desired context size exists.
+	"""Ensure a derived Ollama model with the desired runtime profile exists.
 
 	Ollama's OpenAI-compatible ``/v1/chat/completions`` endpoint does **not**
 	support the ``options.num_ctx`` parameter (it silently ignores it),
 	meaining there's no way to set the context window size dynamically at request time.
 
-	The official workaround is to create a derived model with ``num_ctx``
-	baked into its configuration via Ollama's native ``/api/create`` endpoint.
+	The official workaround is to create a derived model with ``num_ctx`` and
+	``num_gpu`` baked into its configuration via Ollama's native
+	``/api/create`` endpoint.
 
 	If the derived model already exists, this function is a no-op.
 
@@ -491,15 +553,18 @@ async def ensure_ollama_model(
 		base_url: Ollama base URL (e.g. ``"http://localhost:11434"``).
 		base_model: The base Ollama model name (e.g. ``"qwen3.5:35b-a3b"``).
 		num_ctx: The context window size in tokens.
+		num_gpu: Number of layers requested on GPU. ``999`` means "all layers".
+		quantize: Quantization override for derived model creation, or
+			``"native"`` to keep the base model tag quantization.
 
 	Returns:
-		The name of the derived model (e.g. ``"qwen3.5:35b-a3b-ctx32k"``).
+		The name of the derived model.
 
 	Raises:
 		RuntimeError: If the base model is not found in Ollama.
 		HTTPStatusError: If the Ollama API request fails.
 	"""
-	derived_name: str = _derive_model_name(base_model, num_ctx)
+	derived_name: str = _derive_model_name(base_model, num_ctx, num_gpu, quantize)
 
 	async with AsyncClient(base_url=base_url, timeout=60.0) as client:
 		# Check if derived model already exists
@@ -519,23 +584,49 @@ async def ensure_ollama_model(
 				f"Pull it first: ollama pull {base_model}"
 			)
 
-		# Create derived model with custom num_ctx
+		# Create derived model with custom num_ctx / num_gpu / quantization profile
 		info(
-			"Creating Ollama model '{derived_name}' (from '{base_model}', num_ctx={num_ctx})...",
+			"Creating Ollama model '{derived_name}' (from '{base_model}', num_ctx={num_ctx}, num_gpu={num_gpu}, quantize={quantize})...",
 			derived_name=derived_name,
 			base_model=base_model,
 			num_ctx=num_ctx,
+			num_gpu=num_gpu,
+			quantize=quantize,
 		)
-		resp: Response = await client.post(
-			"/api/create",
-			json={
-				"model": derived_name,
-				"from": base_model,
-				"parameters": {"num_ctx": num_ctx},
-				"stream": False,
-			},
+		create_payload: dict[str, Union[str, dict[str, int], bool]] = (
+			_build_ollama_create_payload(
+				derived_name=derived_name,
+				base_model=base_model,
+				num_ctx=num_ctx,
+				num_gpu=num_gpu,
+				quantize=quantize,
+			)
 		)
-		resp.raise_for_status()
+
+		try:
+			resp = await client.post("/api/create", json=create_payload)
+			resp.raise_for_status()
+		except HTTPStatusError as exc:
+			if _normalize_quantize(quantize) == "native":
+				raise
+
+			warning(
+				"Quantize override '{quantize}' failed ({status_code}); retrying with native quantization.",
+				quantize=quantize,
+				status_code=exc.response.status_code,
+			)
+			resp = await client.post(
+				"/api/create",
+				json=_build_ollama_create_payload(
+					derived_name=derived_name,
+					base_model=base_model,
+					num_ctx=num_ctx,
+					num_gpu=num_gpu,
+					quantize="native",
+				),
+			)
+			resp.raise_for_status()
+
 		info(
 			"Created Ollama model '{derived_name}' successfully.",
 			derived_name=derived_name,
@@ -546,9 +637,9 @@ async def ensure_ollama_model(
 async def configure_agent_model() -> None:
 	"""Ensure the derived Ollama model exists and update the agent.
 
-	Creates a derived Ollama model with ``num_ctx`` from
-	``settings.OLLAMA_NUM_CTX`` baked in (if it doesn't already exist),
-	then updates the agent's model reference to use it.
+	Creates a derived Ollama model with ``num_ctx``, ``num_gpu``, and
+	optional quantization override from settings (if it doesn't already
+	exist), then updates the agent's model reference to use it.
 
 	Must be called during application startup (e.g. FastAPI lifespan)
 	before the agent processes any requests.
@@ -557,6 +648,8 @@ async def configure_agent_model() -> None:
 		base_url=settings.OLLAMA_BASE_URL,
 		base_model=settings.OLLAMA_MODEL_NAME,
 		num_ctx=settings.OLLAMA_NUM_CTX,
+		num_gpu=settings.OLLAMA_NUM_GPU,
+		quantize=settings.OLLAMA_QUANTIZE,
 	)
 	agent.model = OpenAIChatModel(
 		derived_name,
@@ -582,7 +675,10 @@ if settings.DEBUG and settings.ENVIRONMENT in ("development", "testing"):
 	# derived model at module import time so the agent has the correct
 	# context window when running via to_web().
 	_derived_name: str = _derive_model_name(
-		settings.OLLAMA_MODEL_NAME, settings.OLLAMA_NUM_CTX
+		settings.OLLAMA_MODEL_NAME,
+		settings.OLLAMA_NUM_CTX,
+		settings.OLLAMA_NUM_GPU,
+		settings.OLLAMA_QUANTIZE,
 	)
 	try:
 		with Client(base_url=settings.OLLAMA_BASE_URL, timeout=60.0) as _client:
@@ -592,16 +688,41 @@ if settings.DEBUG and settings.ENVIRONMENT in ("development", "testing"):
 					"Dev mode: creating derived model '{derived_name}'...",
 					derived_name=_derived_name,
 				)
-				_client.post(
-					"/api/create",
-					json={
-						"model": _derived_name,
-						"from": settings.OLLAMA_MODEL_NAME,
-						"parameters": {"num_ctx": settings.OLLAMA_NUM_CTX},
-						"stream": False,
-					},
-					timeout=60.0,
-				).raise_for_status()
+				_create_payload: dict[str, Union[str, dict[str, int], bool]] = (
+					_build_ollama_create_payload(
+						derived_name=_derived_name,
+						base_model=settings.OLLAMA_MODEL_NAME,
+						num_ctx=settings.OLLAMA_NUM_CTX,
+						num_gpu=settings.OLLAMA_NUM_GPU,
+						quantize=settings.OLLAMA_QUANTIZE,
+					)
+				)
+				try:
+					_client.post(
+						"/api/create",
+						json=_create_payload,
+						timeout=60.0,
+					).raise_for_status()
+				except HTTPStatusError as exc:
+					if _normalize_quantize(settings.OLLAMA_QUANTIZE) == "native":
+						raise
+
+					warning(
+						"Dev mode: quantize override '{quantize}' failed ({status_code}); retrying with native quantization.",
+						quantize=settings.OLLAMA_QUANTIZE,
+						status_code=exc.response.status_code,
+					)
+					_client.post(
+						"/api/create",
+						json=_build_ollama_create_payload(
+							derived_name=_derived_name,
+							base_model=settings.OLLAMA_MODEL_NAME,
+							num_ctx=settings.OLLAMA_NUM_CTX,
+							num_gpu=settings.OLLAMA_NUM_GPU,
+							quantize="native",
+						),
+						timeout=60.0,
+					).raise_for_status()
 		agent.model = OpenAIChatModel(
 			_derived_name,
 			provider=OllamaProvider(

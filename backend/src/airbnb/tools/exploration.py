@@ -286,7 +286,7 @@ async def _explore_single_listing(
 				)
 
 		if merge_fields:
-			listing = listing.model_copy(update=merge_fields)
+			listing: AirbnbListing = listing.model_copy(update=merge_fields)
 
 		return ListingWithCost(listing=listing, cost_breakdown=cost)
 	except Exception as exc:
