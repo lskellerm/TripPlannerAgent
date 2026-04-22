@@ -33,6 +33,6 @@ htmlcov/
 
 # Playwright MCP artifacts
 .playwright-mcp/
-search_page.html
+search_page*.html
 listing_*.html
 booking_*.html
