@@ -14,7 +14,9 @@
 			"args": [
 				"-y",
 				"chrome-devtools-mcp@latest",
-				"--headless"
+				"--headless",
+				"--no-usage-statistics",
+				"--no-performance-crux"
 			],
 			"sandboxEnabled": false
 		},
