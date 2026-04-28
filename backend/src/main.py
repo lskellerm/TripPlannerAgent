@@ -28,11 +28,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	On startup:
 	- Configures Logfire observability (when ``LOGFIRE_TOKEN`` is set).
 	- Creates all database tables if they do not yet exist.
-	- Ensures the Playwright HTML output directory exists.
-	- Starts the Playwright MCP server subprocess via the agent context.
+	- Ensures the parser-bridge output directory exists.
+	- Starts the browser MCP server subprocess via the agent context.
 
 	On shutdown:
-	- Stops the Playwright MCP server subprocess.
+	- Stops the browser MCP server subprocess.
 	- Disposes the async database engine to release connections.
 
 	Args:
@@ -56,13 +56,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 	async with engine.begin() as conn:
 		await conn.run_sync(Base.metadata.create_all)
 
-	# ── Playwright HTML Output Directory ──
-	Path(settings.PLAYWRIGHT_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+	# ── Parser Bridge Output Directory ──
+	Path(settings.SHARED_BROWSER_ARTIFACT_DIR).mkdir(parents=True, exist_ok=True)
 
 	# ── Ollama Derived Model Configuration ──
 	await configure_agent_model()
 
-	# ── Playwright MCP Server Lifecycle ──
+	# ── Browser MCP Server Lifecycle ──
 	async with trip_agent:
 		yield
 
