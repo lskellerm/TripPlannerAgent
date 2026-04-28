@@ -6,7 +6,17 @@
 			"args": [
 				"@playwright/mcp@latest",
 				"--headless"
-			]
+			],
+		},
+		"chrome-devtools": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"chrome-devtools-mcp@latest",
+				"--headless"
+			],
+			"sandboxEnabled": false
 		},
 		"excalidraw": {
 			"type": "http",
