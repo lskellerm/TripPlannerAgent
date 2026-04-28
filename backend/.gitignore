@@ -36,3 +36,8 @@ htmlcov/
 search_page*.html
 listing_*.html
 booking_*.html
+
+# Chrome DevTools MCP Artifacts
+search_page*.network-response
+search_page_*.network-response
+listing_*.network-response
