@@ -8,6 +8,7 @@ __all__: list[str] = ["generate_custom_unique_id"]
 
 import re
 from typing import Union
+from urllib.parse import ParseResult, urlparse
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
@@ -109,11 +110,15 @@ def configure_logfire(
 			configure(scrubbing=ScrubbingOptions(callback=_scrubbing_callback))
 
 
-def _scrubbing_callback(match: ScrubMatch) -> None:
+def _scrubbing_callback(match: ScrubMatch) -> Union[str, None]:
 	"""A callback function to allow disabling certain configurable matched 'substrings' from being scrubbed in Logfire logs.
 
 	Args:
-		record: The original log record dictionary.
+		match: A single Logfire scrub match.
+
+
+	Returns:
+		The original matched substring to prevent scrubbing, or None to apply default scrubbing.
 
 	"""
 	if (
@@ -125,3 +130,83 @@ def _scrubbing_callback(match: ScrubMatch) -> None:
 		and match.pattern_match.group(0) == "Session"
 	):
 		return match.value  # Return the original matched substring to prevent scrubbing
+
+	# Keep diagnostics for browser_get_network_request safe by replacing the
+	# response payload with metadata only (no headers/body/query-string).
+	if (
+		match.path == ("attributes", "tool_response")
+		and match.pattern_match.group(0) == "auth"
+	):
+		return _sanitize_network_response_metadata(match.value)
+
+	return None
+
+
+def _sanitize_network_response_metadata(value: str) -> Union[str, None]:
+	"""Extract non-sensitive diagnostic metadata from a network response payload.
+
+	This helper intentionally keeps only metadata needed for debugging:
+	status, content-type, byte length, and URL host/path. It never returns
+	headers, body content, or URL query strings.
+
+	Args:
+		value: The raw value considered for scrubbing.
+
+	Returns:
+		A sanitized metadata string for network response diagnostics, or
+		``None`` when the value is not recognized as a network response payload.
+	"""
+	if not isinstance(value, str):
+		return None
+
+	lowered: str = value.lower()
+	if "http://" not in lowered and "https://" not in lowered:
+		return None
+
+	if "content-type" not in lowered and "content-length" not in lowered:
+		return None
+
+	url_match: Union[re.Match[str], None] = re.search(r"https?://[^\s\"'<>]+", value)
+	if url_match is None:
+		return None
+
+	parsed: ParseResult = urlparse(url_match.group(0))
+	host: str = parsed.netloc or "unknown"
+	path: str = parsed.path or "/"
+
+	status_match: Union[re.Match[str], None] = re.search(
+		r"(?:status(?:[_ -]?code)?\s*[:=]\s*(\d{3})|\[(\d{3})\])",
+		value,
+		re.IGNORECASE,
+	)
+	status_code: Union[str, None] = None
+	if status_match is not None:
+		status_code: Union[str, None] = status_match.group(1) or status_match.group(2)
+
+	content_type_match: Union[re.Match[str], None] = re.search(
+		r"content-type\s*[:=]\s*([^\r\n;]+(?:;[^\r\n]+)?)",
+		value,
+		re.IGNORECASE,
+	)
+	content_type: Union[str, None] = None
+	if content_type_match is not None:
+		content_type: Union[str, None] = content_type_match.group(1).strip()
+
+	content_length_match: Union[re.Match[str], None] = re.search(
+		r"content-length\s*[:=]\s*(\d+)", value, re.IGNORECASE
+	)
+	byte_length: Union[str, None] = None
+	if content_length_match is not None:
+		byte_length: Union[str, None] = content_length_match.group(1)
+
+	if status_code is None and content_type is None and byte_length is None:
+		return None
+
+	return (
+		"[Sanitized network response metadata] "
+		f"status={status_code or 'unknown'}, "
+		f"content_type={content_type or 'unknown'}, "
+		f"byte_length={byte_length or 'unknown'}, "
+		f"url_host={host}, "
+		f"url_path={path}"
+	)
