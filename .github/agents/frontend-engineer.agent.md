@@ -14,7 +14,12 @@ tools:
     "todo",
     "github/*",
   ]
-model: ["Claude Opus 4.6 (copilot)", "GPT-5.3-Codex (copilot)"]
+model:
+  [
+    "GPT-5.3-Codex (copilot)",
+    "GPT-5.2-Codex (copilot)",
+    "Claude Opus 4.7 (copilot)",
+  ]
 agents: ["Codebase Diagramming", "UI Designer"]
 ---
 
@@ -90,26 +95,26 @@ Invoke this agent when you need:
 
 ## Technology Stack
 
-| Category            | Technology                                  | Documentation                                                  |
-| ------------------- | ------------------------------------------- | -------------------------------------------------------------- |
-| **Framework**       | Nuxt 3 (Vue 3)                              | https://nuxt.com/docs                                          |
-| **Language**        | TypeScript 5.9+                             | https://www.typescriptlang.org/docs/                           |
-| **Reactivity**      | Vue 3 Composition API                       | https://vuejs.org/guide/extras/composition-api-faq             |
-| **Routing**         | Nuxt file-based routing                     | https://nuxt.com/docs/getting-started/routing                  |
-| **Server state**    | TanStack Vue Query v5                       | https://tanstack.com/query/latest/docs/framework/vue/overview  |
-| **Client state**    | Pinia                                       | https://pinia.vuejs.org                                        |
-| **Components**      | shadcn-vue (on reka-ui primitives)          | https://www.shadcn-vue.com                                     |
-| **Primitives**      | Reka UI (Radix Vue successor)               | https://reka-ui.com                                            |
-| **Styling**         | Tailwind CSS v4 (via `@tailwindcss/vite`)   | https://tailwindcss.com/docs                                   |
-| **Icons**           | Lucide Vue Next                             | https://lucide.dev                                             |
-| **Utilities**       | VueUse                                      | https://vueuse.org                                             |
-| **Toasts**          | Vue Sonner                                  | https://vue-sonner.vercel.app                                  |
-| **API client gen**  | @hey-api/openapi-ts + @hey-api/client-fetch | https://heyapi.dev                                             |
-| **Class merging**   | clsx + tailwind-merge (via `cn()`)          | —                                                              |
-| **Animations**      | tw-animate-css                              | —                                                              |
-| **Linting**         | ESLint (via @nuxt/eslint flat config)       | https://eslint.nuxt.com                                        |
-| **Formatting**      | Prettier                                    | https://prettier.io/docs/en/                                   |
-| **Package manager** | pnpm                                        | https://pnpm.io                                                |
+| Category            | Technology                                  | Documentation                                                 |
+| ------------------- | ------------------------------------------- | ------------------------------------------------------------- |
+| **Framework**       | Nuxt 3 (Vue 3)                              | https://nuxt.com/docs                                         |
+| **Language**        | TypeScript 5.9+                             | https://www.typescriptlang.org/docs/                          |
+| **Reactivity**      | Vue 3 Composition API                       | https://vuejs.org/guide/extras/composition-api-faq            |
+| **Routing**         | Nuxt file-based routing                     | https://nuxt.com/docs/getting-started/routing                 |
+| **Server state**    | TanStack Vue Query v5                       | https://tanstack.com/query/latest/docs/framework/vue/overview |
+| **Client state**    | Pinia                                       | https://pinia.vuejs.org                                       |
+| **Components**      | shadcn-vue (on reka-ui primitives)          | https://www.shadcn-vue.com                                    |
+| **Primitives**      | Reka UI (Radix Vue successor)               | https://reka-ui.com                                           |
+| **Styling**         | Tailwind CSS v4 (via `@tailwindcss/vite`)   | https://tailwindcss.com/docs                                  |
+| **Icons**           | Lucide Vue Next                             | https://lucide.dev                                            |
+| **Utilities**       | VueUse                                      | https://vueuse.org                                            |
+| **Toasts**          | Vue Sonner                                  | https://vue-sonner.vercel.app                                 |
+| **API client gen**  | @hey-api/openapi-ts + @hey-api/client-fetch | https://heyapi.dev                                            |
+| **Class merging**   | clsx + tailwind-merge (via `cn()`)          | —                                                             |
+| **Animations**      | tw-animate-css                              | —                                                             |
+| **Linting**         | ESLint (via @nuxt/eslint flat config)       | https://eslint.nuxt.com                                       |
+| **Formatting**      | Prettier                                    | https://prettier.io/docs/en/                                  |
+| **Package manager** | pnpm                                        | https://pnpm.io                                               |
 
 ## Architecture Overview
 
@@ -324,7 +329,9 @@ import { chatWithAgent, getChatHistory } from "~/api/sdk.gen";
           ⭐ {{ listing.rating }}
         </Badge>
       </div>
-      <p class="mt-2 text-lg font-semibold">${{ listing.nightly_rate }}/night</p>
+      <p class="mt-2 text-lg font-semibold">
+        ${{ listing.nightly_rate }}/night
+      </p>
     </CardContent>
   </Card>
 </template>
@@ -624,14 +631,14 @@ Rules:
 
 These components are owned in source at `app/components/ui/`:
 
-| Component    | Files                                                                      | Usage                                            |
-| ------------ | -------------------------------------------------------------------------- | ------------------------------------------------ |
-| **Badge**    | `Badge.vue`, `index.ts`                                                    | Bedroom/bathroom counts, ratings, amenity labels |
-| **Button**   | `Button.vue`, `index.ts`                                                   | Send message, clear chat, actions                |
-| **Card**     | `Card.vue`, `CardHeader.vue`, `CardTitle.vue`, `CardDescription.vue`, etc. | Listing cards, cost summaries, week overviews    |
-| **Dialog**   | `Dialog.vue`, `DialogContent.vue`, `DialogHeader.vue`, etc.                | Listing detail modals, trip summary dialogs      |
-| **Input**    | `Input.vue`, `index.ts`                                                    | Chat text input, search parameters               |
-| **Sonner**   | `Sonner.vue`, `index.ts`                                                   | Toast notifications for errors, agent status     |
+| Component  | Files                                                                      | Usage                                            |
+| ---------- | -------------------------------------------------------------------------- | ------------------------------------------------ |
+| **Badge**  | `Badge.vue`, `index.ts`                                                    | Bedroom/bathroom counts, ratings, amenity labels |
+| **Button** | `Button.vue`, `index.ts`                                                   | Send message, clear chat, actions                |
+| **Card**   | `Card.vue`, `CardHeader.vue`, `CardTitle.vue`, `CardDescription.vue`, etc. | Listing cards, cost summaries, week overviews    |
+| **Dialog** | `Dialog.vue`, `DialogContent.vue`, `DialogHeader.vue`, etc.                | Listing detail modals, trip summary dialogs      |
+| **Input**  | `Input.vue`, `index.ts`                                                    | Chat text input, search parameters               |
+| **Sonner** | `Sonner.vue`, `index.ts`                                                   | Toast notifications for errors, agent status     |
 
 ### Adding New Components
 
@@ -649,19 +656,19 @@ Reference: https://www.shadcn-vue.com/docs/components
 
 The design token system is defined in `app/assets/css/main.css` using CSS custom properties (OKLCH color space):
 
-| Token                    | Tailwind Class               | Usage                                        |
-| ------------------------ | ---------------------------- | -------------------------------------------- |
-| `--background`           | `bg-background`              | Page backgrounds                             |
-| `--foreground`           | `text-foreground`            | Primary text                                 |
-| `--card` / `--card-fg`   | `bg-card text-card-fg`       | Listing card surfaces                        |
-| `--muted` / `--muted-fg` | `bg-muted text-muted-fg`     | Secondary text, descriptions                 |
-| `--primary`              | `bg-primary text-primary-fg` | Send button, active elements                 |
-| `--destructive`          | `bg-destructive`             | Error states, failed scraping indicators     |
-| `--success`              | `bg-success`                 | Successful data extraction                   |
-| `--warning`              | `bg-warning`                 | Anti-bot detection warnings                  |
-| `--border`               | `border-border`              | Borders, dividers                            |
-| `--ring`                 | `ring-ring`                  | Focus rings                                  |
-| `--accent`               | `bg-accent`                  | Hover backgrounds                            |
+| Token                    | Tailwind Class               | Usage                                    |
+| ------------------------ | ---------------------------- | ---------------------------------------- |
+| `--background`           | `bg-background`              | Page backgrounds                         |
+| `--foreground`           | `text-foreground`            | Primary text                             |
+| `--card` / `--card-fg`   | `bg-card text-card-fg`       | Listing card surfaces                    |
+| `--muted` / `--muted-fg` | `bg-muted text-muted-fg`     | Secondary text, descriptions             |
+| `--primary`              | `bg-primary text-primary-fg` | Send button, active elements             |
+| `--destructive`          | `bg-destructive`             | Error states, failed scraping indicators |
+| `--success`              | `bg-success`                 | Successful data extraction               |
+| `--warning`              | `bg-warning`                 | Anti-bot detection warnings              |
+| `--border`               | `border-border`              | Borders, dividers                        |
+| `--ring`                 | `ring-ring`                  | Focus rings                              |
+| `--accent`               | `bg-accent`                  | Hover backgrounds                        |
 
 Use the `cn()` utility from `~/lib/utils.ts` for conditional class merging:
 
@@ -669,10 +676,7 @@ Use the `cn()` utility from `~/lib/utils.ts` for conditional class merging:
 import { cn } from "~/lib/utils";
 
 // Merge classes safely (handles conflicts via tailwind-merge)
-const classes = cn(
-  "text-sm p-2",
-  isStreaming && "animate-pulse",
-);
+const classes = cn("text-sm p-2", isStreaming && "animate-pulse");
 ```
 
 ## Page-Specific Guidance
@@ -738,14 +742,14 @@ The main interface — a chat-based interaction with the Pydantic AI agent:
 
 ### State Management Strategy
 
-| Data Type                | Where It Lives       | Example                                         |
-| ------------------------ | -------------------- | ----------------------------------------------- |
-| Chat history (persisted) | TanStack Query cache | `useQuery({ queryKey: ['chat', 'history'] })`   |
-| Chat messages (session)  | Pinia `chat` store   | `useChatStore().messages`                       |
-| Streaming state          | Pinia `chat` store   | `useChatStore().isStreaming`                     |
-| Current stream content   | Pinia `chat` store   | `useChatStore().currentStreamContent`            |
-| Agent status             | TanStack Query cache | `useQuery({ queryKey: ['agent', 'status'] })`   |
-| UI state                 | Pinia `ui` store     | `useUiStore().activeModal`                      |
+| Data Type                | Where It Lives       | Example                                       |
+| ------------------------ | -------------------- | --------------------------------------------- |
+| Chat history (persisted) | TanStack Query cache | `useQuery({ queryKey: ['chat', 'history'] })` |
+| Chat messages (session)  | Pinia `chat` store   | `useChatStore().messages`                     |
+| Streaming state          | Pinia `chat` store   | `useChatStore().isStreaming`                  |
+| Current stream content   | Pinia `chat` store   | `useChatStore().currentStreamContent`         |
+| Agent status             | TanStack Query cache | `useQuery({ queryKey: ['agent', 'status'] })` |
+| UI state                 | Pinia `ui` store     | `useUiStore().activeModal`                    |
 
 ### Error Handling
 
@@ -787,11 +791,11 @@ Rules:
 
 ### Responsive Design
 
-| Breakpoint | Width  | Layout Changes                                            |
-| ---------- | ------ | --------------------------------------------------------- |
-| Desktop    | 1440px | Centered chat with max-width, listing cards side-by-side  |
-| Tablet     | 768px  | Full-width chat, listing cards stack vertically           |
-| Mobile     | 375px  | Full-width, compact listing cards, smaller cost tables    |
+| Breakpoint | Width  | Layout Changes                                           |
+| ---------- | ------ | -------------------------------------------------------- |
+| Desktop    | 1440px | Centered chat with max-width, listing cards side-by-side |
+| Tablet     | 768px  | Full-width chat, listing cards stack vertically          |
+| Mobile     | 375px  | Full-width, compact listing cards, smaller cost tables   |
 
 - Tailwind responsive prefixes: `sm:`, `md:`, `lg:`, `xl:`
 - Chat input stays fixed to bottom on all viewports
@@ -820,26 +824,26 @@ Reference: https://www.w3.org/WAI/WCAG21/quickref/
 
 ## Key Reference Links
 
-| Resource                     | Path / URL                                                             |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| **Implementation plan**      | `.github/prompts/plans/tripPlannerAgent-spec-plan.prompt.md`           |
-| **Copilot instructions**     | `.github/copilot-instructions.md`                                      |
-| **Cost reference doc**       | `CDMX_trip_airbnb_cost.md`                                            |
-| **Nuxt 3 docs**              | https://nuxt.com/docs                                                  |
-| **Vue 3 docs**               | https://vuejs.org/guide/introduction                                   |
-| **Composition API FAQ**      | https://vuejs.org/guide/extras/composition-api-faq                     |
-| **TanStack Vue Query docs**  | https://tanstack.com/query/latest/docs/framework/vue/overview          |
-| **Pinia docs**               | https://pinia.vuejs.org                                                |
-| **shadcn-vue docs**          | https://www.shadcn-vue.com                                             |
-| **Reka UI docs**             | https://reka-ui.com                                                    |
-| **Tailwind CSS v4 docs**     | https://tailwindcss.com/docs                                           |
-| **VueUse docs**              | https://vueuse.org                                                     |
-| **Lucide icons**             | https://lucide.dev                                                     |
-| **@hey-api/openapi-ts docs** | https://heyapi.dev                                                     |
-| **Vue Sonner docs**          | https://vue-sonner.vercel.app                                          |
-| **@nuxt/eslint docs**        | https://eslint.nuxt.com                                                |
-| **Prettier docs**            | https://prettier.io/docs/en/                                           |
-| **WCAG 2.1 Quick Reference** | https://www.w3.org/WAI/WCAG21/quickref/                                |
+| Resource                     | Path / URL                                                    |
+| ---------------------------- | ------------------------------------------------------------- |
+| **Implementation plan**      | `.github/prompts/plans/tripPlannerAgent-spec-plan.prompt.md`  |
+| **Copilot instructions**     | `.github/copilot-instructions.md`                             |
+| **Cost reference doc**       | `CDMX_trip_airbnb_cost.md`                                    |
+| **Nuxt 3 docs**              | https://nuxt.com/docs                                         |
+| **Vue 3 docs**               | https://vuejs.org/guide/introduction                          |
+| **Composition API FAQ**      | https://vuejs.org/guide/extras/composition-api-faq            |
+| **TanStack Vue Query docs**  | https://tanstack.com/query/latest/docs/framework/vue/overview |
+| **Pinia docs**               | https://pinia.vuejs.org                                       |
+| **shadcn-vue docs**          | https://www.shadcn-vue.com                                    |
+| **Reka UI docs**             | https://reka-ui.com                                           |
+| **Tailwind CSS v4 docs**     | https://tailwindcss.com/docs                                  |
+| **VueUse docs**              | https://vueuse.org                                            |
+| **Lucide icons**             | https://lucide.dev                                            |
+| **@hey-api/openapi-ts docs** | https://heyapi.dev                                            |
+| **Vue Sonner docs**          | https://vue-sonner.vercel.app                                 |
+| **@nuxt/eslint docs**        | https://eslint.nuxt.com                                       |
+| **Prettier docs**            | https://prettier.io/docs/en/                                  |
+| **WCAG 2.1 Quick Reference** | https://www.w3.org/WAI/WCAG21/quickref/                       |
 
 ## Common Commands
 

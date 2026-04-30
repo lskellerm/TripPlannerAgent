@@ -14,7 +14,12 @@ tools:
     "todo",
     "github/*",
   ]
-model: ["Claude Opus 4.6 (copilot)", "GPT-5.3-Codex (copilot)"]
+model:
+  [
+    "GPT-5.3-Codex (copilot)",
+    "GPT-5.2-Codex (copilot)",
+    "Claude Opus 4.7 (copilot)",
+  ]
 agents: ["Codebase Diagramming"]
 ---
 

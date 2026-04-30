@@ -15,7 +15,12 @@ tools:
     "github/*",
     "figma/*",
   ]
-model: ["Claude Opus 4.6 (copilot)", "GPT-5.3-Codex (copilot)"]
+model:
+  [
+    "GPT-5.3-Codex (copilot)",
+    "GPT-5.2-Codex (copilot)",
+    "Claude Opus 4.7 (copilot)",
+  ]
 agents: ["Codebase Diagramming", "Frontend Engineer"]
 ---
 
@@ -71,31 +76,31 @@ Do **not** invoke this agent for:
 
 ## Figma MCP Tool Catalog
 
-| Tool                    | Description                                  | When to Use                                     |
-| ----------------------- | -------------------------------------------- | ----------------------------------------------- |
-| `create_rectangle`      | Draw a filled rectangle                      | Cards, containers, backgrounds, placeholders     |
-| `create_frame`          | Create a Figma frame (like a `<div>`)        | Layout containers, page wrappers, auto-layout    |
-| `create_text`           | Add text with font/size/color                | Labels, headings, body text, prices              |
-| `create_ellipse`        | Draw an ellipse (circle or oval)             | Avatar placeholders, status dots, rating stars   |
-| `create_component`      | Create a reusable Figma component            | ListingCard, ChatMessage, CostRow, WeekHeader    |
-| `create_component_set`  | Group component variants into a set          | ChatMessage (user/agent), Button (primary/ghost) |
-| `set_auto_layout`       | Apply auto-layout (flexbox equivalent)       | Chat message lists, listing grids, cost rows     |
-| `create_line`           | Draw a line                                  | Dividers between messages or table rows          |
-| `group_nodes`           | Group child nodes                            | Complex multi-element compositions               |
-| `set_fill_color`        | Set node fill color                          | Apply design token colors                        |
-| `set_stroke_color`      | Set node stroke/border color                 | Card borders, input outlines                     |
-| `set_corner_radius`     | Set node corner radius                       | Card radius (`--radius` token), rounded avatars  |
-| `move_node`             | Position a node at specific coordinates      | Manual positioning when auto-layout isn't used   |
-| `resize_node`           | Resize a node to exact dimensions            | Match responsive breakpoint widths               |
-| `get_node_info`         | Get properties of an existing node           | Inspect after creating to verify properties      |
-| `clone_node`            | Duplicate a node                             | Repeat listing cards, cost rows, chat messages   |
-| `delete_node`           | Remove a node from the canvas                | Clean up unused elements                         |
-| `flatten_node`          | Flatten a node to a single shape             | Simplify complex vector compositions             |
-| `set_text_content`      | Update text content of a text node           | Fill in listing names, prices, dates             |
-| `set_visibility`        | Toggle node visibility                       | Show/hide state-specific layers                  |
-| `get_styles`            | Get document styles (colors, text styles)    | Audit existing tokens before adding new ones     |
-| `get_local_components`  | List all local components                    | Reuse existing components before creating new    |
-| `get_selection`         | Get info about currently selected nodes      | Inspect or modify user-selected elements         |
+| Tool                   | Description                               | When to Use                                      |
+| ---------------------- | ----------------------------------------- | ------------------------------------------------ |
+| `create_rectangle`     | Draw a filled rectangle                   | Cards, containers, backgrounds, placeholders     |
+| `create_frame`         | Create a Figma frame (like a `<div>`)     | Layout containers, page wrappers, auto-layout    |
+| `create_text`          | Add text with font/size/color             | Labels, headings, body text, prices              |
+| `create_ellipse`       | Draw an ellipse (circle or oval)          | Avatar placeholders, status dots, rating stars   |
+| `create_component`     | Create a reusable Figma component         | ListingCard, ChatMessage, CostRow, WeekHeader    |
+| `create_component_set` | Group component variants into a set       | ChatMessage (user/agent), Button (primary/ghost) |
+| `set_auto_layout`      | Apply auto-layout (flexbox equivalent)    | Chat message lists, listing grids, cost rows     |
+| `create_line`          | Draw a line                               | Dividers between messages or table rows          |
+| `group_nodes`          | Group child nodes                         | Complex multi-element compositions               |
+| `set_fill_color`       | Set node fill color                       | Apply design token colors                        |
+| `set_stroke_color`     | Set node stroke/border color              | Card borders, input outlines                     |
+| `set_corner_radius`    | Set node corner radius                    | Card radius (`--radius` token), rounded avatars  |
+| `move_node`            | Position a node at specific coordinates   | Manual positioning when auto-layout isn't used   |
+| `resize_node`          | Resize a node to exact dimensions         | Match responsive breakpoint widths               |
+| `get_node_info`        | Get properties of an existing node        | Inspect after creating to verify properties      |
+| `clone_node`           | Duplicate a node                          | Repeat listing cards, cost rows, chat messages   |
+| `delete_node`          | Remove a node from the canvas             | Clean up unused elements                         |
+| `flatten_node`         | Flatten a node to a single shape          | Simplify complex vector compositions             |
+| `set_text_content`     | Update text content of a text node        | Fill in listing names, prices, dates             |
+| `set_visibility`       | Toggle node visibility                    | Show/hide state-specific layers                  |
+| `get_styles`           | Get document styles (colors, text styles) | Audit existing tokens before adding new ones     |
+| `get_local_components` | List all local components                 | Reuse existing components before creating new    |
+| `get_selection`        | Get info about currently selected nodes   | Inspect or modify user-selected elements         |
 
 ## Tool Usage Principles
 
@@ -110,13 +115,13 @@ Do **not** invoke this agent for:
 
 ### Application Screens
 
-| Screen           | Description                                          | Key Components                                                |
-| ---------------- | ---------------------------------------------------- | ------------------------------------------------------------- |
-| **Chat**         | Main interface — conversational AI trip planner       | ChatMessage, ChatInput, ListingCard, CostTable, WeekSummary   |
-| **Login**        | OAuth login (Phase 5)                                | Three OAuth buttons (Google, Apple, GitHub), centered card     |
-| **Empty State**  | First visit — no conversation history                | Welcome message, example prompts, app branding                |
-| **Streaming**    | Agent is processing — incremental response rendering | Typing indicator, tool usage badges, progressive text render  |
-| **Error State**  | Something went wrong — Ollama down, rate limited     | Error card, retry button, helpful message                     |
+| Screen          | Description                                          | Key Components                                               |
+| --------------- | ---------------------------------------------------- | ------------------------------------------------------------ |
+| **Chat**        | Main interface — conversational AI trip planner      | ChatMessage, ChatInput, ListingCard, CostTable, WeekSummary  |
+| **Login**       | OAuth login (Phase 5)                                | Three OAuth buttons (Google, Apple, GitHub), centered card   |
+| **Empty State** | First visit — no conversation history                | Welcome message, example prompts, app branding               |
+| **Streaming**   | Agent is processing — incremental response rendering | Typing indicator, tool usage badges, progressive text render |
+| **Error State** | Something went wrong — Ollama down, rate limited     | Error card, retry button, helpful message                    |
 
 ### Listing Comparison Flow
 
@@ -253,16 +258,16 @@ Before creating any design:
 
 ## Design Principles
 
-| Principle            | Guideline                                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **Clarity first**    | Trip planning involves complex data (costs, dates, amenity comparisons). Prioritize scannability and hierarchy.           |
-| **Progressive reveal**| Don't overwhelm with all data at once. Show key metrics first (per-person cost, rating), reveal details on interaction.  |
-| **Conversational**   | The UI is a chat — design flows should feel like a conversation, not a form-fill dashboard.                              |
-| **Data-dense cards** | Listing cards must pack key info (title, price, beds, rating, amenities) without feeling cluttered. Hierarchy is key.    |
-| **Streaming-native** | Design for incremental disclosure — results appear as the agent discovers them, not all at once.                          |
-| **Multi-week aware** | Multi-week trips have different participants per week. Week boundaries should be visually distinct.                       |
-| **Cost-focused**     | Per-person cost is the most important metric. Total cost is secondary. Always show cost prominently.                      |
-| **Responsive**       | Desktop shows side-by-side listing cards. Mobile stacks them. Cost tables scroll horizontally on small screens.           |
+| Principle              | Guideline                                                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Clarity first**      | Trip planning involves complex data (costs, dates, amenity comparisons). Prioritize scannability and hierarchy.         |
+| **Progressive reveal** | Don't overwhelm with all data at once. Show key metrics first (per-person cost, rating), reveal details on interaction. |
+| **Conversational**     | The UI is a chat — design flows should feel like a conversation, not a form-fill dashboard.                             |
+| **Data-dense cards**   | Listing cards must pack key info (title, price, beds, rating, amenities) without feeling cluttered. Hierarchy is key.   |
+| **Streaming-native**   | Design for incremental disclosure — results appear as the agent discovers them, not all at once.                        |
+| **Multi-week aware**   | Multi-week trips have different participants per week. Week boundaries should be visually distinct.                     |
+| **Cost-focused**       | Per-person cost is the most important metric. Total cost is secondary. Always show cost prominently.                    |
+| **Responsive**         | Desktop shows side-by-side listing cards. Mobile stacks them. Cost tables scroll horizontally on small screens.         |
 
 ## User Flow Design Conventions
 
